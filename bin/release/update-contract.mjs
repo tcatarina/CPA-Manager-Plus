@@ -1,4 +1,4 @@
-export const repository = 'https://github.com/seakee/CPA-Manager-Plus';
+export const repository = 'https://github.com/tcatarina/CPA-Manager-Plus';
 const pattern =
   /^v?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/;
 export function parseVersion(tag) {
@@ -81,11 +81,11 @@ export function validateInfo(info, tag) {
     guide.origin !== 'https://github.com' ||
     guide.username ||
     guide.password ||
-    !guide.pathname.startsWith('/seakee/CPA-Manager-Plus/')
+    !guide.pathname.startsWith('/tcatarina/CPA-Manager-Plus/')
   )
     throw new Error('Invalid upgrade guide');
   if (
-    info.distribution?.docker?.image !== 'seakee/cpa-manager-plus' ||
+    info.distribution?.docker?.image !== 'tcatarina/cpa-manager-plus' ||
     info.distribution.docker.version_tag !== tag ||
     JSON.stringify([...(info.distribution?.native?.assets || [])].sort()) !==
       JSON.stringify(nativeAssets(tag))

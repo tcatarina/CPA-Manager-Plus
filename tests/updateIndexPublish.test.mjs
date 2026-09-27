@@ -130,7 +130,7 @@ function scenario({
     return JSON.stringify({
       manifest: {
         digest:
-          registryMismatch && reference.startsWith('seakee/')
+          registryMismatch && reference.startsWith('tcatarina/')
             ? 'sha256:' + 'f'.repeat(64)
             : candidate.imageDigest,
         manifests: ['amd64', 'arm64'].map((architecture) => ({
@@ -147,7 +147,7 @@ function scenario({
     run: () =>
       publishUpdateIndex({
         env: {
-          GITHUB_REPOSITORY: 'seakee/CPA-Manager-Plus',
+          GITHUB_REPOSITORY: 'tcatarina/CPA-Manager-Plus',
           GITHUB_TOKEN: 'fixture',
           WITHDRAW_RELEASE: withdraw,
           RESTORE_RELEASE: restore,

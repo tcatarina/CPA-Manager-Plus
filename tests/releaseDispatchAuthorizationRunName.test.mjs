@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { validateDryRunRecord } from '../bin/release/authorize-release-dispatch.mjs';
 
-const repository = 'seakee/CPA-Manager-Plus';
+const repository = 'tcatarina/CPA-Manager-Plus';
 const releaseTag = 'v1.12.14';
 const releaseSha = 'a'.repeat(40);
 const expectedTitle = `Build and Release · dry-run · ${releaseTag}`;

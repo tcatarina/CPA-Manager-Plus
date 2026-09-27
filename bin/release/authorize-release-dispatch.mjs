@@ -84,7 +84,7 @@ export const authorizeReleaseDispatch = async ({
   if (!isFullSha(releaseSha)) fail('Release SHA must be a full commit SHA');
   if (!isPositiveInteger(runAttempt)) fail('Release workflow attempt must be a positive integer');
   const currentAttempt = Number(runAttempt);
-  if (repository !== 'seakee/CPA-Manager-Plus') fail(`Unexpected repository: ${repository || '<empty>'}`);
+  if (repository !== 'tcatarina/CPA-Manager-Plus') fail(`Unexpected repository: ${repository || '<empty>'}`);
   if (!token) fail('Missing GitHub token');
   if (action === 'create-tag' && mode !== 'publish') {
     fail('Tag creation is allowed only for publish dispatches');

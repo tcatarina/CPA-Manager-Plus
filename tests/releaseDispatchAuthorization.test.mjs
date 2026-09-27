@@ -4,7 +4,7 @@ import {
   validateDryRunRecord,
 } from '../bin/release/authorize-release-dispatch.mjs';
 
-const repository = 'seakee/CPA-Manager-Plus';
+const repository = 'tcatarina/CPA-Manager-Plus';
 const releaseTag = 'v1.2.3';
 const releaseSha = 'a'.repeat(40);
 

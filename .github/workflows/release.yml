@@ -234,7 +234,6 @@ jobs:
           mkdir -p dist/release/native
           cp apps/web/dist/index.html dist/release/management.html
           cp dist/native/* dist/release/native/
-          cp "docs/release-notes/${RELEASE_TAG}-zh.md" dist/release/release-notes.md
           node bin/release/generate-release-info.mjs "${RELEASE_TAG}" dist/release/release-info.json
           find dist/release -maxdepth 2 -type f -print | sort
 
@@ -382,7 +381,6 @@ jobs:
               node bin/release/verify-published-release.mjs \
                 --tag "${RELEASE_TAG}" \
                 --assets-dir dist/release \
-                --body-path dist/release/release-notes.md \
                 --release-json "${release_json}" \
                 --prerelease "${EXPECTED_PRERELEASE}" \
                 --mode "${verification_mode}" \
@@ -446,7 +444,7 @@ jobs:
         with:
           tag_name: ${{ needs.preflight.outputs.release_tag }}
           files: ${{ steps.release_state.outputs.upload_files }}
-          body_path: dist/release/release-notes.md
+          body: Release ${{ needs.preflight.outputs.release_tag }}.
           draft: true
           prerelease: ${{ needs.preflight.outputs.prerelease == 'true' }}
           overwrite_files: false
@@ -461,7 +459,7 @@ jobs:
         with:
           tag_name: ${{ needs.preflight.outputs.release_tag }}
           files: ${{ steps.release_state.outputs.upload_files }}
-          body_path: dist/release/release-notes.md
+          body: Release ${{ needs.preflight.outputs.release_tag }}.
           draft: false
           prerelease: ${{ needs.preflight.outputs.prerelease == 'true' }}
           overwrite_files: false
@@ -526,7 +524,6 @@ jobs:
           node bin/release/verify-published-release.mjs \
             --tag "${RELEASE_TAG}" \
             --assets-dir dist/release \
-            --body-path dist/release/release-notes.md \
             --release-json "${release_json}" \
             --prerelease "${EXPECTED_PRERELEASE}" \
             --mode draft \
@@ -558,7 +555,6 @@ jobs:
           node bin/release/verify-published-release.mjs \
             --tag "${RELEASE_TAG}" \
             --assets-dir dist/release \
-            --body-path dist/release/release-notes.md \
             --release-json "${release_json}" \
             --prerelease "${EXPECTED_PRERELEASE}" \
             --allow-missing-assets false
@@ -578,8 +574,8 @@ jobs:
       RELEASE_VERSION: ${{ needs.preflight.outputs.release_version }}
       RELEASE_SHA: ${{ github.sha }}
       DRY_RUN: ${{ needs.preflight.outputs.dry_run }}
-      DOCKERHUB_IMAGE: seakee/cpa-manager-plus
-      GHCR_IMAGE: ghcr.io/seakee/cpa-manager-plus
+      DOCKERHUB_IMAGE: tcatarina/cpa-manager-plus
+      GHCR_IMAGE: ghcr.io/tcatarina/cpa-manager-plus
 
     steps:
       - name: Checkout release source
@@ -602,8 +598,8 @@ jobs:
         run: |
           set -euo pipefail
 
-          if [ "${DOCKERHUB_IMAGE}" != "seakee/cpa-manager-plus" ]; then
-            echo "Docker image name must be seakee/cpa-manager-plus" >&2
+          if [ "${DOCKERHUB_IMAGE}" != "tcatarina/cpa-manager-plus" ]; then
+            echo "Docker image name must be tcatarina/cpa-manager-plus" >&2
             exit 1
           fi
 
@@ -749,7 +745,6 @@ jobs:
         run: |
           set -euo pipefail
           test -s dist/release/management.html
-          test -s dist/release/release-notes.md
           test -n "$(find dist/release/native -type f -maxdepth 1 -print -quit)"
 
       - name: Reuse matching GitHub Release
@@ -783,7 +778,6 @@ jobs:
           node bin/release/verify-published-release.mjs \
             --tag "${RELEASE_TAG}" \
             --assets-dir dist/release \
-            --body-path dist/release/release-notes.md \
             --release-json "${release_json}" \
             --prerelease "${EXPECTED_PRERELEASE}" \
             --mode draft \
@@ -816,7 +810,6 @@ jobs:
           node bin/release/verify-published-release.mjs \
             --tag "${RELEASE_TAG}" \
             --assets-dir dist/release \
-            --body-path dist/release/release-notes.md \
             --release-json "${publish_json}" \
             --prerelease "${EXPECTED_PRERELEASE}" \
             --allow-missing-assets false
@@ -849,7 +842,6 @@ jobs:
           node bin/release/verify-published-release.mjs \
             --tag "${RELEASE_TAG}" \
             --assets-dir dist/release \
-            --body-path dist/release/release-notes.md \
             --release-json "${release_json}" \
             --prerelease "${EXPECTED_PRERELEASE}" \
             --allow-missing-assets false
@@ -862,30 +854,3 @@ jobs:
       packages: write
     uses: ./.github/workflows/update-index-publish.yml
     secrets: inherit
-
-  notify_telegram:
-    name: Notify Telegram
-    needs:
-      - preflight
-      - publish_github_release
-      - publish_update_index
-    if: needs.preflight.outputs.dry_run != 'true' && github.run_attempt == 1
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    env:
-      RELEASE_TAG: ${{ needs.preflight.outputs.release_tag }}
-
-    steps:
-      - name: Checkout release source
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.sha }}
-
-      - name: Send Telegram release notification
-        shell: bash
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          TELEGRAM_MESSAGE_THREAD_ID: ${{ secrets.TELEGRAM_MESSAGE_THREAD_ID }}
-        run: bash bin/release/send-telegram-release.sh

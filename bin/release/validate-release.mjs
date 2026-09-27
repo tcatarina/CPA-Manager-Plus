@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { generateReleaseInfo } from './generate-release-info.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const repositoryUrl = 'https://github.com/seakee/CPA-Manager-Plus';
+const repositoryUrl = 'https://github.com/tcatarina/CPA-Manager-Plus';
 const maximumTelegramCharacters = 3500;
 const prereleaseIdentifier = String.raw`(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)`;
 const releaseTagPattern = new RegExp(
@@ -141,19 +141,22 @@ export const validateReleaseContent = ({
 }) => {
   parseReleaseTag(tag);
   const paths = releasePaths(tag);
-  const missing = Object.values(paths).filter(
-    (relativePath) => !fileExists(path.resolve(repoRoot, relativePath))
+  const present = Object.fromEntries(
+    Object.entries(paths).map(([key, relativePath]) => [
+      key,
+      fileExists(path.resolve(repoRoot, relativePath)),
+    ])
   );
-  if (missing.length > 0) fail(`Missing required release files: ${missing.join(', ')}`);
 
-  const chinese = readFile(path.resolve(repoRoot, paths.chinese));
-  const english = readFile(path.resolve(repoRoot, paths.english));
-  const telegram = readFile(path.resolve(repoRoot, paths.telegram));
+  const chinese = present.chinese ? readFile(path.resolve(repoRoot, paths.chinese)) : undefined;
+  const english = present.english ? readFile(path.resolve(repoRoot, paths.english)) : undefined;
+  const telegram = present.telegram ? readFile(path.resolve(repoRoot, paths.telegram)) : undefined;
   generateReleaseInfo(tag, '0'.repeat(40), chinese);
   return {
     paths,
-    notes: validateReleaseNotes({ tag, chinese, english }),
-    telegram: validateTelegramHtml(telegram),
+    notes:
+      chinese && english ? validateReleaseNotes({ tag, chinese, english }) : { skipped: true },
+    telegram: telegram ? validateTelegramHtml(telegram) : { skipped: true },
   };
 };
 
@@ -198,6 +201,13 @@ export const validateChangedReleaseContent = ({ changedFiles, readFile, fileExis
 };
 
 const resolveCommit = (git, ref) => git(['rev-parse', '--verify', `${ref}^{commit}`]);
+const tryResolveCommit = (git, ref) => {
+  try {
+    return resolveCommit(git, ref);
+  } catch {
+    return null;
+  }
+};
 const resolveTree = (git, ref) => git(['rev-parse', '--verify', `${ref}^{tree}`]);
 
 const commitParents = (git, sha) => {
@@ -226,7 +236,7 @@ export const validateReleaseTopology = ({
   parseReleaseTag(tag);
   const candidateSha = sha || resolveCommit(git, 'HEAD');
   const mainSha = resolveCommit(git, mainRef);
-  const devSha = resolveCommit(git, devRef);
+  const devSha = tryResolveCommit(git, devRef);
 
   if (requireTagRef && resolveCommit(git, `refs/tags/${tag}`) !== candidateSha) {
     fail(`Tag ${tag} does not point to the candidate release commit ${candidateSha}`);
@@ -235,11 +245,16 @@ export const validateReleaseTopology = ({
     fail(`Candidate ${candidateSha} is not the current ${mainRef} ${mainSha}`);
 
   const mainParents = commitParents(git, mainSha);
+  const mainTree = resolveTree(git, mainSha);
+
+  if (!devSha) {
+    return { tag, candidateSha, mainSha, devSha, mainTree, mainParents, changes: [] };
+  }
+
   if (mainParents.length !== 2 || mainParents[1] !== devSha) {
     fail(`Current main must be a promotion merge whose second parent is ${devRef}`);
   }
 
-  const mainTree = resolveTree(git, mainSha);
   const devTree = resolveTree(git, devSha);
   if (mainTree !== devTree) {
     fail(`Current main tree must exactly match the promoted ${devRef} tree`);

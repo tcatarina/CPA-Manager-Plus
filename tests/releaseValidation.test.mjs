@@ -28,7 +28,7 @@ const validMetadata = {
     breaking: false,
     migration_required: false,
     minimum_direct_upgrade_version: null,
-    upgrade_guide_url: `https://github.com/seakee/CPA-Manager-Plus/releases/tag/${releaseTag}`,
+    upgrade_guide_url: `https://github.com/tcatarina/CPA-Manager-Plus/releases/tag/${releaseTag}`,
   },
   compatibility: {
     minimum_cpa_version: null,
@@ -37,7 +37,7 @@ const validMetadata = {
 
 const makeChineseNotes = (metadata = validMetadata) => `# CPA Manager Plus ${releaseTag}
 
-[English ->](https://github.com/seakee/CPA-Manager-Plus/blob/${releaseTag}/docs/release-notes/${releaseTag}-en.md)
+[English ->](https://github.com/tcatarina/CPA-Manager-Plus/blob/${releaseTag}/docs/release-notes/${releaseTag}-en.md)
 
 <!-- cpamp-update
 ${typeof metadata === 'string' ? metadata : JSON.stringify(metadata, null, 2)}
@@ -47,11 +47,11 @@ ${typeof metadata === 'string' ? metadata : JSON.stringify(metadata, null, 2)}
 const chineseNotes = makeChineseNotes();
 const notesWithoutMetadata = `# CPA Manager Plus ${releaseTag}
 
-[English ->](https://github.com/seakee/CPA-Manager-Plus/blob/${releaseTag}/docs/release-notes/${releaseTag}-en.md)
+[English ->](https://github.com/tcatarina/CPA-Manager-Plus/blob/${releaseTag}/docs/release-notes/${releaseTag}-en.md)
 `;
 const englishNotes = `# CPA Manager Plus ${releaseTag}
 
-[中文 ->](https://github.com/seakee/CPA-Manager-Plus/blob/${releaseTag}/docs/release-notes/${releaseTag}-zh.md)
+[中文 ->](https://github.com/tcatarina/CPA-Manager-Plus/blob/${releaseTag}/docs/release-notes/${releaseTag}-zh.md)
 `;
 const telegramPost = '<b>v1.2.3</b>\n\n• Release update';
 
@@ -105,7 +105,7 @@ describe('release content validation', () => {
     expect(() => validateTelegramHtml('<b>&bogus;</b>')).toThrow('invalid or unescaped');
   });
 
-  it('requires all three release files before publishing', () => {
+  it('treats release notes and the telegram post as optional', () => {
     const contents = new Map([
       [releasePaths.chinese, chineseNotes],
       [releasePaths.english, englishNotes],
@@ -118,9 +118,12 @@ describe('release content validation', () => {
       paths: releasePaths,
     });
     contents.delete(releasePaths.telegram);
-    expect(() => validateReleaseContent({ tag: releaseTag, readFile, fileExists })).toThrow(
-      'Missing required release files'
-    );
+    contents.delete(releasePaths.english);
+    contents.delete(releasePaths.chinese);
+    expect(validateReleaseContent({ tag: releaseTag, readFile, fileExists })).toMatchObject({
+      notes: { skipped: true },
+      telegram: { skipped: true },
+    });
   });
 
   it('requires valid cpamp-update metadata in Chinese release notes', () => {

@@ -148,7 +148,6 @@ describe('GitHub Actions workflow integrity', () => {
       'inspect_github_release',
       'build_and_push_docker',
       'publish_github_release',
-      'notify_telegram',
     ]) {
       const job = jobBlock(workflow, jobName);
       expect(
@@ -174,17 +173,12 @@ describe('GitHub Actions workflow integrity', () => {
     expect(workflow).not.toContain('previous_tag');
   });
 
-  it('scopes Telegram secrets to the delivery step', () => {
+  it('removes Telegram delivery from the release workflow', () => {
     const workflow = readWorkflow('release.yml');
-    const notifyJob = jobBlock(workflow, 'notify_telegram');
-    const stepsOffset = notifyJob.indexOf('\n    steps:');
-    const jobConfiguration = notifyJob.slice(0, stepsOffset);
-    const deliveryStep = notifyJob.slice(notifyJob.indexOf('- name: Send Telegram'));
 
-    expect(jobConfiguration).not.toContain('TELEGRAM_BOT_TOKEN');
-    expect(jobConfiguration).not.toContain('TELEGRAM_CHAT_ID');
-    expect(deliveryStep).toContain('TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}');
-    expect(deliveryStep).toContain('TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}');
+    expect(workflow).not.toContain('notify_telegram');
+    expect(workflow).not.toContain('TELEGRAM_');
+    expect(workflow).not.toContain('send-telegram-release.sh');
   });
 
   it('keeps published Release reruns idempotent and fail-closed', () => {
@@ -241,11 +235,6 @@ describe('GitHub Actions workflow integrity', () => {
   });
 
   it('prevents automatic Telegram delivery on workflow reruns', () => {
-    const workflow = readWorkflow('release.yml');
-    const notifyJob = jobBlock(workflow, 'notify_telegram');
-
-    expect(notifyJob).toContain('github.run_attempt == 1');
-    expect(notifyJob).toContain('run: bash bin/release/send-telegram-release.sh');
     expect(telegramScript).not.toContain('--retry');
     expect(telegramScript).not.toContain('--retry-all-errors');
   });

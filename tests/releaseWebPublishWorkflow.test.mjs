@@ -66,7 +66,7 @@ describe('web release publish workflow', () => {
   });
 
   it('keeps Telegram non-idempotent delivery out of release reruns', () => {
-    expect(workflow).toContain('github.run_attempt == 1');
-    expect(workflow).toContain('bash bin/release/send-telegram-release.sh');
+    expect(workflow).not.toContain('notify_telegram');
+    expect(workflow).not.toContain('send-telegram-release.sh');
   });
 });

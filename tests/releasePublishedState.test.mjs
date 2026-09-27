@@ -37,7 +37,7 @@ const makeReleaseFixture = () => {
                   migration_required: false,
                   minimum_direct_upgrade_version: null,
                   upgrade_guide_url:
-                    'https://github.com/seakee/CPA-Manager-Plus/releases/tag/' + tag,
+                    'https://github.com/tcatarina/CPA-Manager-Plus/releases/tag/' + tag,
                 },
                 compatibility: { minimum_cpa_version: null },
               }) +

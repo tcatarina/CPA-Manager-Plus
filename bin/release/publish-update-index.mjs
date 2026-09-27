@@ -100,10 +100,10 @@ export async function publishUpdateIndex({
   fetchImpl = fetch,
   exec = execFileSync,
 } = {}) {
-  if (env.GITHUB_REPOSITORY !== 'seakee/CPA-Manager-Plus') throw new Error('Unexpected repository');
+  if (env.GITHUB_REPOSITORY !== 'tcatarina/CPA-Manager-Plus') throw new Error('Unexpected repository');
   const token = env.GITHUB_TOKEN;
   if (!token) throw new Error('Missing GitHub token');
-  const apiBase = 'https://api.github.com/repos/seakee/CPA-Manager-Plus';
+  const apiBase = 'https://api.github.com/repos/tcatarina/CPA-Manager-Plus';
   const retryableMethods = new Set(['GET', 'PATCH']);
   const api = async (path, method = 'GET', body, allow404 = false) => {
     let res;
@@ -205,7 +205,7 @@ export async function publishUpdateIndex({
   }
   const { channels, aliases } = resolveAliases(infos, withdrawn);
   if (!infos.length && !withdraw) throw new Error('At least one verified release is required');
-  const images = ['ghcr.io/seakee/cpa-manager-plus', 'seakee/cpa-manager-plus'];
+  const images = ['ghcr.io/tcatarina/cpa-manager-plus', 'tcatarina/cpa-manager-plus'];
   // Validate all precise references first, before any alias mutation.
   const targets = new Set([
     ...Object.values(aliases),
