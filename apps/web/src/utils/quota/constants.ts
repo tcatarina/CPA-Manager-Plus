@@ -203,6 +203,20 @@ export const KIMI_REQUEST_HEADERS = {
   Authorization: 'Bearer $TOKEN$',
 };
 
+export const GLM_USAGE_URL = 'https://api.z.ai/api/monitor/usage/quota/limit';
+
+export const GLM_USAGE_URL_CN = 'https://open.bigmodel.cn/api/monitor/usage/quota/limit';
+
+export const GLM_REQUEST_HEADERS = {
+  Authorization: 'Bearer $TOKEN$',
+  Accept: 'application/json',
+};
+
+export const GLM_QUOTA_WINDOW_KEYS: Record<number, { id: string; labelKey: string }> = {
+  3: { id: '5h', labelKey: 'glm_quota.five_hour' },
+  6: { id: '7d', labelKey: 'glm_quota.weekly' },
+};
+
 // xAI/Grok API configuration
 export const XAI_BILLING_WEEKLY_URL = 'https://cli-chat-proxy.grok.com/v1/billing?format=credits';
 export const XAI_BILLING_MONTHLY_URL = 'https://cli-chat-proxy.grok.com/v1/billing';

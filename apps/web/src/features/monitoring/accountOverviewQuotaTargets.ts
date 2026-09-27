@@ -13,8 +13,16 @@ import {
 } from '@/utils/quota';
 import type { MonitoringAccountAuthState } from './accountOverviewState';
 import type { MonitoringAccountRow } from './hooks/useMonitoringData';
+import type { MonitoringChannelMeta } from './model/types';
 
-export type MonitoringAccountQuotaProvider = 'antigravity' | 'claude' | 'codex' | 'kimi' | 'xai' | 'devin';
+export type MonitoringAccountQuotaProvider =
+  | 'antigravity'
+  | 'claude'
+  | 'codex'
+  | 'kimi'
+  | 'xai'
+  | 'devin'
+  | 'glm';
 
 export type MonitoringAccountQuotaTarget = {
   key: string;
@@ -83,9 +91,56 @@ const resolveActiveQuotaProvidersForRow = (
   return activeProviders;
 };
 
+const buildGlmQuotaTargetsForRow = (
+  row: MonitoringAccountRow,
+  channels: MonitoringChannelMeta[] | undefined
+): MonitoringAccountQuotaTarget[] => {
+  if (!channels?.length) return [];
+
+  const rowAuthIndices = new Set(
+    row.authIndices
+      .map((value) => normalizeAuthIndex(value))
+      .filter((value): value is string => Boolean(value))
+  );
+  if (rowAuthIndices.size === 0) return [];
+
+  const targets: MonitoringAccountQuotaTarget[] = [];
+  channels.forEach((channel) => {
+    if (channel.disabled) return;
+    const isGlmChannel = /(?:^|[^a-z])(?:z\.ai|bigmodel\.cn|glm)/i.test(
+      `${channel.baseUrl} ${channel.name}`
+    );
+    if (!isGlmChannel) return;
+
+    channel.authIndices.forEach((rawAuthIndex) => {
+      const authIndex = normalizeAuthIndex(rawAuthIndex);
+      if (!authIndex || !rowAuthIndices.has(authIndex)) return;
+
+      const file = {
+        name: channel.name,
+        auth_index: authIndex,
+        authIndex,
+      } as unknown as AuthFileItem;
+      const key = `glm::${authIndex}::${channel.name}`;
+      targets.push({
+        key,
+        provider: 'glm',
+        authIndex,
+        authLabel: channel.name || authIndex,
+        fileName: channel.name,
+        file,
+        accountId: null,
+        planType: null,
+      });
+    });
+  });
+  return targets;
+};
+
 export const buildMonitoringAccountQuotaTargetsByRowId = (
   rows: MonitoringAccountRow[],
-  authStateByRowId: Map<string, MonitoringAccountAuthState>
+  authStateByRowId: Map<string, MonitoringAccountAuthState>,
+  channels?: MonitoringChannelMeta[]
 ) =>
   new Map(
     rows.map((row) => {
@@ -116,11 +171,13 @@ export const buildMonitoringAccountQuotaTargetsByRowId = (
 
       return [
         row.id,
-        Array.from(bucket.values()).sort(
-          (left, right) =>
-            left.authLabel.localeCompare(right.authLabel) ||
-            left.provider.localeCompare(right.provider)
-        ),
+        Array.from(bucket.values())
+          .concat(buildGlmQuotaTargetsForRow(row, channels))
+          .sort(
+            (left, right) =>
+              left.authLabel.localeCompare(right.authLabel) ||
+              left.provider.localeCompare(right.provider)
+          ),
       ] as const;
     })
   );

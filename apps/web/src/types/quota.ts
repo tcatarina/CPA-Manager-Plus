@@ -484,6 +484,50 @@ export interface KimiQuotaState extends CredentialScopedQuotaState {
   errorStatus?: number;
 }
 
+export interface GlmQuotaLimit {
+  type?: string;
+  unit?: number;
+  number?: number;
+  usage?: number;
+  currentValue?: number;
+  remaining?: number;
+  percentage?: number;
+  nextResetTime?: number;
+}
+
+export interface GlmQuotaDataPayload {
+  code?: number;
+  msg?: string;
+  success?: boolean;
+  data?: {
+    level?: string;
+    limits?: GlmQuotaLimit[];
+  };
+}
+
+export interface GlmQuotaRow {
+  id: string;
+  label?: string;
+  labelKey?: string;
+  unit?: number;
+  used: number;
+  limit: number;
+  remaining: number;
+  usedPercent?: number;
+  resetAtMs?: number | null;
+  resetAccuracy?: QuotaResetAccuracy;
+  scope?: string;
+}
+
+export interface GlmQuotaState extends CredentialScopedQuotaState {
+  status: 'idle' | 'loading' | 'success' | 'error';
+  plan?: string;
+  rows: GlmQuotaRow[];
+  quotaInventoryObserved?: boolean;
+  error?: string;
+  errorStatus?: number;
+}
+
 // xAI/Grok API payload types
 export interface XaiBillingCent extends Record<string, unknown> {
   val?: number | string;

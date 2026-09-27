@@ -2423,6 +2423,14 @@
     "scoped_limit_index": "{{scope}} · Limit #{{index}}",
     "reset_hint": "resets in {{hint}}"
   },
+  "glm_quota": {
+    "title": "Z.AI Quota",
+    "five_hour": "5-hour window",
+    "weekly": "Weekly window",
+    "empty_windows": "No Z.AI quota windows were returned for this account.",
+    "empty_data": "Z.AI returned no quota data for this credential.",
+    "missing_auth_index": "OpenAI-compatible credential is missing its auth_index"
+  },
   "xai_quota": {
     "title": "xAI Quota",
     "empty_title": "No xAI Auth Files",
