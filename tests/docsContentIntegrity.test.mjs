@@ -95,16 +95,11 @@ describe('documentation content integrity', () => {
 
   it('keeps README discovery language and primary docs entry points', () => {
     const readme = readFileSync(path.join(repoRoot, 'README.md'), 'utf8');
-    const readmeZh = readFileSync(path.join(repoRoot, 'README_CN.md'), 'utf8');
 
     expect(readme).toContain('CPA / CLIProxyAPI management panel');
     expect(readme).toContain('Choosing A CPA Panel');
     expect(readme).toContain('CPAMP Lightweight Panel');
     expect(readme).toContain('Capability Matrix');
-    expect(readmeZh).toContain('CPA / CLIProxyAPI 的自托管管理面板');
-    expect(readmeZh).toContain('如何选择 CPA 面板');
-    expect(readmeZh).toContain('CPAMP 轻量面板');
-    expect(readmeZh).toContain('能力矩阵');
   });
 
   it('keeps lightweight-panel and Manager Server boundaries accurate', () => {
@@ -112,10 +107,8 @@ describe('documentation content integrity', () => {
       .map((filePath) => readFileSync(filePath, 'utf8'))
       .join('\n');
     const readme = readFileSync(path.join(repoRoot, 'README.md'), 'utf8');
-    const readmeZh = readFileSync(path.join(repoRoot, 'README_CN.md'), 'utf8');
 
     expect(readme).not.toContain('| CPA-hosted panel');
-    expect(readmeZh).not.toContain('| CPA 托管面板');
     expect(docsContent).not.toContain('After connecting Manager Server');
     expect(docsContent).not.toContain('连接 Manager Server 后');
     expect(docsContent).not.toContain('full usage features still need Manager Server');
@@ -126,7 +119,6 @@ describe('documentation content integrity', () => {
 
   it('separates runnable product modes from the demo preview', () => {
     const readme = readFileSync(path.join(repoRoot, 'README.md'), 'utf8');
-    const readmeZh = readFileSync(path.join(repoRoot, 'README_CN.md'), 'utf8');
     const docsIndex = readFileSync(path.join(docsRoot, 'index.md'), 'utf8');
     const docsIndexEn = readFileSync(path.join(docsRoot, 'en/index.md'), 'utf8');
     const choosingPanel = readFileSync(path.join(docsRoot, 'guide/choosing-a-panel.md'), 'utf8');
@@ -148,11 +140,6 @@ describe('documentation content integrity', () => {
     expect(readme).not.toContain('| Live Demo');
     expect(readme).toContain('It is not a deployment or runtime mode');
     expect(readme).not.toContain('| Native Manager Server');
-    expect(readmeZh).toContain('| CPAMP 轻量面板');
-    expect(readmeZh).toContain('| CPAMP 完整模式');
-    expect(readmeZh).not.toContain('| 在线演示');
-    expect(readmeZh).toContain('不是部署或运行模式');
-    expect(readmeZh).not.toContain('| Full Docker');
     expect(docsIndex.split('## 先体验界面')[0]).not.toContain('<h3>在线演示</h3>');
     expect(docsIndex).toContain('不是部署或运行模式');
     expect(docsIndexEn.split('## Preview The Interface')[0]).not.toContain('<h3>Live Demo</h3>');

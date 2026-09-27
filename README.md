@@ -16,7 +16,7 @@ A self-hosted CPA / CLIProxyAPI management panel and AI gateway observability da
 
 Operate providers, credentials, OAuth, plugins, and configuration while keeping persistent request history, cost analytics, and account automation in local storage.
 
-[中文](README_CN.md) ｜ [Live Demo](https://seakee.github.io/CPA-Manager-Plus/) ｜ [Documentation](https://seakee.github.io/CPA-Manager-Plus/docs/en/) ｜ [Install](#quick-start)
+[Live Demo](https://seakee.github.io/CPA-Manager-Plus/) ｜ [Documentation](https://seakee.github.io/CPA-Manager-Plus/docs/en/) ｜ [Install](#quick-start)
 
 </div>
 

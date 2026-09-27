@@ -72,7 +72,7 @@ Commands / evidence:
 
 ## Docs
 
-- [ ] README / README_CN updated for user-visible capabilities
+- [ ] README updated for user-visible capabilities
 - [ ] Matching docs manual and navigation updated
 - [ ] Demo fixtures, screenshots, and deep links reviewed
 - [ ] Release notes needed

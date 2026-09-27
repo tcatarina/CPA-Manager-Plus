@@ -41,7 +41,6 @@ const triggersFrontend = (filePath) =>
   startsWithPath(filePath, 'apps/docs') ||
   startsWithPath(filePath, 'tests') ||
   filePath === 'README.md' ||
-  filePath === 'README_CN.md' ||
   filePath === 'package.json' ||
   filePath === 'package-lock.json' ||
   filePath === '.github/dependabot.yml' ||

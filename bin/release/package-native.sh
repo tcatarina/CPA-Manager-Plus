@@ -50,7 +50,6 @@ for target in "${targets[@]}"; do
   )
 
   cp "${repo_root}/README.md" "${package_dir}/README.md"
-  cp "${repo_root}/README_CN.md" "${package_dir}/README_CN.md"
   cp -R "${repo_root}/docs" "${package_dir}/docs"
   cp "${repo_root}/LICENSE" "${package_dir}/LICENSE"
   if [ "${goos}" = "windows" ]; then
