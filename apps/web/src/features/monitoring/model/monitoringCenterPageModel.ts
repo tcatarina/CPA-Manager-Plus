@@ -9,6 +9,8 @@ import type {
   CodexQuotaWindow,
   DevinQuotaState,
   DevinQuotaWindow,
+  GlmQuotaRow,
+  GlmQuotaState,
   KimiQuotaState,
   KimiQuotaRow,
   XaiBillingSummary,
@@ -1167,6 +1169,28 @@ const buildAntigravityAccountQuotaWindows = (
     })
   );
 
+const buildGlmAccountQuotaWindows = (rows: GlmQuotaRow[], t: TFunction): AccountQuotaWindow[] =>
+  rows.map((row) => {
+    const limit = row.limit;
+    const remainingPercent =
+      row.remaining != null && limit > 0
+        ? clampRemainingPercent(Math.round((row.remaining / limit) * 100))
+        : null;
+    const rowLabel = row.labelKey
+      ? t(row.labelKey)
+      : (row.label ?? '');
+
+    return {
+      id: row.id,
+      label: rowLabel,
+      remainingPercent,
+      resetLabel: '-',
+      resetAtMs: row.resetAtMs ?? null,
+      resetAccuracy: row.resetAccuracy ?? 'unknown',
+      usageLabel: row.usedPercent != null ? `${row.usedPercent}% used` : null,
+    };
+  });
+
 const buildKimiAccountQuotaWindows = (rows: KimiQuotaRow[], t: TFunction): AccountQuotaWindow[] =>
   rows.map((row) => {
     const limit = row.limit;
@@ -1350,6 +1374,8 @@ const getAccountQuotaEmptyMessage = (provider: MonitoringAccountQuotaProvider, t
       return t('claude_quota.empty_windows');
     case 'kimi':
       return t('kimi_quota.empty_data');
+    case 'glm':
+      return t('glm_quota.empty_windows');
     case 'xai':
       return t('xai_quota.empty_data');
     case 'devin':
@@ -1383,6 +1409,7 @@ export type MonitoringQuotaStores = {
   claudeQuota: Record<string, ClaudeQuotaState>;
   codexQuota: Record<string, CodexQuotaState>;
   devinQuota: Record<string, DevinQuotaState>;
+  glmQuota: Record<string, GlmQuotaState>;
   kimiQuota: Record<string, KimiQuotaState>;
   xaiQuota: Record<string, XaiQuotaState>;
 };
@@ -1392,6 +1419,7 @@ export type MonitoringProviderQuotaState =
   | ClaudeQuotaState
   | CodexQuotaState
   | DevinQuotaState
+  | GlmQuotaState
   | KimiQuotaState
   | XaiQuotaState;
 
@@ -1464,6 +1492,21 @@ export const buildAccountQuotaEntryFromProviderState = (
           ),
           planType,
           windows: buildClaudeAccountQuotaWindows(quota.windows, t),
+        },
+        quota
+      );
+    }
+    case 'glm': {
+      const quota = state as GlmQuotaState;
+      const metaLabels: string[] = [];
+      if (quota.plan) {
+        metaLabels.push(`${t('plans.label')}: ${quota.plan}`);
+      }
+      return applyProviderQuotaStateMetadata(
+        {
+          ...buildBaseAccountQuotaEntry(target, t, metaLabels),
+          planType: quota.plan ?? target.planType,
+          windows: buildGlmAccountQuotaWindows(quota.rows, t),
         },
         quota
       );
@@ -1575,6 +1618,12 @@ export const buildCachedAccountQuotaEntry = (
       return buildAccountQuotaEntryFromProviderState(
         target,
         getCredentialScopedQuotaState(stores.devinQuota, target.file),
+        t
+      );
+    case 'glm':
+      return buildAccountQuotaEntryFromProviderState(
+        target,
+        getCredentialScopedQuotaState(stores.glmQuota, target.file),
         t
       );
     case 'kimi':

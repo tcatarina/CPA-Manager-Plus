@@ -5,6 +5,7 @@ import {
   CLAUDE_CONFIG,
   CODEX_CONFIG,
   DEVIN_CONFIG,
+  GLM_CONFIG,
   KIMI_CONFIG,
   XAI_CONFIG,
 } from '@/components/quota';
@@ -13,6 +14,7 @@ import {
   fetchClaudeQuota,
   fetchCodexQuota,
   fetchDevinQuota,
+  fetchGlmQuota,
   fetchKimiQuota,
   fetchXaiQuota,
 } from '@/utils/quota';
@@ -63,6 +65,7 @@ vi.mock('@/utils/quota', async (importOriginal) => {
     fetchClaudeQuota: vi.fn(),
     fetchCodexQuota: vi.fn(),
     fetchDevinQuota: vi.fn(),
+    fetchGlmQuota: vi.fn(),
     fetchKimiQuota: vi.fn(),
     fetchXaiQuota: vi.fn(),
   };
@@ -208,6 +211,15 @@ const buildEntryFromMockedProviderFetch = async (
       );
       break;
     }
+    case 'glm': {
+      const data = await fetchGlmQuota(target.file, translate);
+      entry = buildAccountQuotaEntryFromProviderState(
+        target,
+        GLM_CONFIG.buildSuccessState(data, target.file),
+        translate
+      );
+      break;
+    }
   }
   if (!entry) throw new Error(`No quota entry for ${target.provider}`);
   return entry;
@@ -218,6 +230,7 @@ const emptyQuotaStores = (): MonitoringQuotaStores => ({
   claudeQuota: {},
   codexQuota: {},
   devinQuota: {},
+  glmQuota: {},
   kimiQuota: {},
   xaiQuota: {},
 });

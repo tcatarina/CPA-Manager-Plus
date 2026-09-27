@@ -13,6 +13,8 @@ import type {
   CodexQuotaWindow,
   CodexUsagePayload,
   DevinQuotaData,
+  GlmQuotaDataPayload,
+  GlmQuotaRow,
   KimiQuotaRow,
   KimiUsagePayload,
   XaiBillingConfig,
@@ -45,6 +47,9 @@ import {
   CODEX_USAGE_URL,
   DEVIN_GET_USER_STATUS_URL,
   DEVIN_REQUEST_HEADERS,
+  GLM_QUOTA_WINDOW_KEYS,
+  GLM_REQUEST_HEADERS,
+  GLM_USAGE_URL,
   KIMI_REQUEST_HEADERS,
   KIMI_USAGE_URL,
   XAI_BILLING_MONTHLY_URL,
@@ -147,6 +152,12 @@ export type AntigravityQuotaData = {
 
 export type KimiQuotaData = {
   rows: KimiQuotaRow[];
+  quotaInventoryObserved: boolean;
+};
+
+export type GlmQuotaData = {
+  plan: string;
+  rows: GlmQuotaRow[];
   quotaInventoryObserved: boolean;
 };
 
@@ -1199,8 +1210,95 @@ export const fetchKimiQuota = async (
   };
 };
 
-const normalizeXaiCentValue = (value: unknown): number | null => {
-  if (value === undefined || value === null) return null;
+export const parseGlmQuotaPayload = (
+  raw: unknown
+): { plan: string; rows: GlmQuotaRow[] } | null => {
+  const payload = raw as GlmQuotaDataPayload | null | undefined;
+  if (!isRecord(payload) || payload.success !== true) return null;
+  const data = payload.data as GlmQuotaDataPayload['data'] | undefined;
+  const limits = data?.limits;
+  if (!Array.isArray(limits) || limits.length === 0) return null;
+
+  const rows: GlmQuotaRow[] = [];
+  limits.forEach((limit, index) => {
+    if (!isRecord(limit)) return;
+    const usage = normalizeNumberValue(limit.usage) ?? 0;
+    const used = normalizeNumberValue(limit.currentValue) ?? 0;
+    const remaining = normalizeNumberValue(limit.remaining) ?? 0;
+    const unit = normalizeNumberValue(limit.unit) ?? 0;
+    const window = GLM_QUOTA_WINDOW_KEYS[unit];
+    const resetAtMs =
+      normalizeNumberValue(limit.nextResetTime) != null &&
+      (limit.nextResetTime as number) > 0
+        ? (limit.nextResetTime as number)
+        : null;
+    rows.push({
+      id: window?.id ?? `unit-${unit || index}`,
+      labelKey: window?.labelKey,
+      label: window ? undefined : `Window unit=${unit}`,
+      unit,
+      used,
+      limit: usage,
+      remaining,
+      usedPercent: normalizeNumberValue(limit.percentage) ?? undefined,
+      resetAtMs,
+      resetAccuracy: resetAtMs ? 'exact' : undefined,
+      scope: typeof limit.type === 'string' ? limit.type : undefined,
+    });
+  });
+
+  if (rows.length === 0) return null;
+  const plan = typeof data?.level === 'string' ? data.level.trim() : '';
+  return { plan, rows };
+};
+
+export const fetchGlmQuota = async (
+  file: AuthFileItem,
+  t: TFunction,
+  requestScope?: ApiClientRequestScope
+): Promise<GlmQuotaData> => {
+  const rawAuthIndex = file['auth_index'] ?? file.authIndex;
+  const authIndex = normalizeAuthIndex(rawAuthIndex);
+  if (!authIndex) {
+    throw new Error(t('glm_quota.missing_auth_index'));
+  }
+
+  const result = await apiCallApi.request(
+    {
+      authIndex,
+      method: 'GET',
+      url: GLM_USAGE_URL,
+      header: { ...GLM_REQUEST_HEADERS },
+    },
+    requestScope ? createScopedApiRequestConfig(requestScope) : undefined
+  );
+
+  if (result.statusCode < 200 || result.statusCode >= 300) {
+    throw createStatusError(getApiCallErrorMessage(result), result.statusCode);
+  }
+
+  const body = result.body ?? result.bodyText;
+  let parsedJson: unknown = body;
+  if (typeof body === 'string') {
+    try {
+      parsedJson = JSON.parse(body);
+    } catch {
+      parsedJson = null;
+    }
+  }
+  const payload = parseGlmQuotaPayload(parsedJson);
+  if (!payload) {
+    throw new Error(t('glm_quota.empty_data'));
+  }
+
+  return {
+    plan: payload.plan,
+    rows: payload.rows,
+    quotaInventoryObserved: true,
+  };
+};
+
+const normalizeXaiCentValue = (value: unknown): number | null => {  if (value === undefined || value === null) return null;
   if (typeof value === 'object' && !Array.isArray(value)) {
     const record = value as { val?: unknown; value?: unknown };
     if (Object.keys(record).length === 0) return null;

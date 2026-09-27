@@ -9,6 +9,7 @@ import type {
   CredentialScopedQuotaState,
   DevinQuotaData,
   DevinQuotaState,
+  GlmQuotaState,
   KimiQuotaState,
   MetaQuotaData,
   MetaQuotaState,
@@ -21,6 +22,7 @@ import type {
   AntigravityQuotaData,
   ClaudeQuotaData,
   CodexQuotaData,
+  GlmQuotaData,
   KimiQuotaData,
   QuotaFetchContext,
 } from '@/utils/quota';
@@ -31,6 +33,7 @@ import {
   fetchCodexQuota,
   fetchCodexQuotaSummary,
   fetchDevinQuota,
+  fetchGlmQuota,
   fetchKimiQuota,
   fetchMetaQuota,
   fetchXaiQuota,
@@ -60,7 +63,7 @@ import {
   scopeQuotaStateToCredential,
 } from '@/utils/quota/credentialScope';
 
-type QuotaType = 'antigravity' | 'claude' | 'codex' | 'kimi' | 'xai' | 'devin' | 'meta';
+type QuotaType = 'antigravity' | 'claude' | 'codex' | 'kimi' | 'xai' | 'devin' | 'meta' | 'glm';
 
 export type { QuotaFetchContext };
 
@@ -634,6 +637,35 @@ export const CLAUDE_CONFIG: QuotaConfig<ClaudeQuotaState, ClaudeQuotaData> = {
   buildErrorState: (message, status, file) => ({
     status: 'error',
     windows: [],
+    error: message,
+    errorStatus: status,
+    ...buildQuotaCredentialIdentity(file),
+    failedAtMs: Date.now(),
+  }),
+  scopeState: scopeCredentialQuotaState,
+};
+
+export const GLM_CONFIG: QuotaConfig<GlmQuotaState, GlmQuotaData> = {
+  type: 'glm',
+  i18nPrefix: 'glm_quota',
+  fetchQuota: fetchGlmQuota,
+  getStoreKey: getQuotaCredentialStoreKey,
+  buildLoadingState: (file) => ({
+    status: 'loading',
+    rows: [],
+    ...buildQuotaCredentialIdentity(file),
+  }),
+  buildSuccessState: (data, file) => ({
+    status: 'success',
+    plan: data.plan,
+    rows: data.rows,
+    quotaInventoryObserved: data.quotaInventoryObserved,
+    ...buildQuotaCredentialIdentity(file),
+    fetchedAtMs: Date.now(),
+  }),
+  buildErrorState: (message, status, file) => ({
+    status: 'error',
+    rows: [],
     error: message,
     errorStatus: status,
     ...buildQuotaCredentialIdentity(file),

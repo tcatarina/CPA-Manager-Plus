@@ -82,6 +82,7 @@ import {
   CLAUDE_CONFIG,
   CODEX_CONFIG,
   DEVIN_CONFIG,
+  GLM_CONFIG,
   KIMI_CONFIG,
   XAI_CONFIG,
   refreshQuotaWithConfig,
@@ -273,6 +274,7 @@ export function MonitoringCenterPage() {
   const claudeQuota = useQuotaStore((state) => state.claudeQuota);
   const codexQuota = useQuotaStore((state) => state.codexQuota);
   const devinQuota = useQuotaStore((state) => state.devinQuota);
+  const glmQuota = useQuotaStore((state) => state.glmQuota);
   const kimiQuota = useQuotaStore((state) => state.kimiQuota);
   const xaiQuota = useQuotaStore((state) => state.xaiQuota);
   const sharedQuotaStores = useMemo<MonitoringQuotaStores>(
@@ -281,15 +283,17 @@ export function MonitoringCenterPage() {
       claudeQuota,
       codexQuota,
       devinQuota,
+      glmQuota,
       kimiQuota,
       xaiQuota,
     }),
-    [antigravityQuota, claudeQuota, codexQuota, devinQuota, kimiQuota, xaiQuota]
+    [antigravityQuota, claudeQuota, codexQuota, devinQuota, glmQuota, kimiQuota, xaiQuota]
   );
   const setAntigravityQuota = useQuotaStore((state) => state.setAntigravityQuota);
   const setClaudeQuota = useQuotaStore((state) => state.setClaudeQuota);
   const setCodexQuota = useQuotaStore((state) => state.setCodexQuota);
   const setDevinQuota = useQuotaStore((state) => state.setDevinQuota);
+  const setGlmQuota = useQuotaStore((state) => state.setGlmQuota);
   const setKimiQuota = useQuotaStore((state) => state.setKimiQuota);
   const setXaiQuota = useQuotaStore((state) => state.setXaiQuota);
   const [selectedAccount, setSelectedAccount] = useState(
@@ -506,6 +510,7 @@ export function MonitoringCenterPage() {
     accountRows: monitoringAccountRows,
     apiKeyRows: monitoringApiKeyRows,
     filterOptions: monitoringFilterOptions,
+    channels: monitoringChannels,
     filteredRows,
     eventsHasMore,
     eventsLoadingMore,
@@ -1028,8 +1033,13 @@ export function MonitoringCenterPage() {
   }, [accountPage, accountPagination.currentPage, overallLoading, setCurrentAccountPage]);
 
   const accountQuotaTargetsByRowId = useMemo(
-    () => buildMonitoringAccountQuotaTargetsByRowId(accountRows, accountAuthStateByRowId),
-    [accountAuthStateByRowId, accountRows]
+    () =>
+      buildMonitoringAccountQuotaTargetsByRowId(
+        accountRows,
+        accountAuthStateByRowId,
+        monitoringChannels
+      ),
+    [accountAuthStateByRowId, accountRows, monitoringChannels]
   );
   const headerSnapshotLookup = useMemo(
     () =>
@@ -1349,6 +1359,12 @@ export function MonitoringCenterPage() {
             setCodexQuota,
             getCredentialScopedQuotaState(sharedQuotaStores.codexQuota, target.file)
           );
+        case 'glm':
+          return run(
+            GLM_CONFIG,
+            setGlmQuota,
+            getCredentialScopedQuotaState(sharedQuotaStores.glmQuota, target.file)
+          );
         case 'kimi':
           return run(
             KIMI_CONFIG,
@@ -1376,6 +1392,7 @@ export function MonitoringCenterPage() {
       setClaudeQuota,
       setCodexQuota,
       setDevinQuota,
+      setGlmQuota,
       setKimiQuota,
       setXaiQuota,
       t,
