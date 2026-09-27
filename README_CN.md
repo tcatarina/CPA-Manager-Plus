@@ -247,7 +247,7 @@ docker compose -f docker-compose.manager.yml up --build
 - `npm run release:validate -- --tag <tag> --content-only` 会在创建 tag 前
   校验三个必需的发布文件。
 - `.github/workflows/release.yml` 支持从 `main` 手动执行 dry-run，只做校验和
-  构建，不发布 GitHub Release、容器镜像或 Telegram 消息。
+  构建，不发布 GitHub Release 或容器镜像。
 - 发布产物包括 `management.html`、原生包及 `linux/amd64`、`linux/arm64` Docker 镜像。
 - 发布任务串行执行，缺少或不匹配的说明文件会直接失败，不再自动回退到提交
   日志；恢复规则和远端保护要求见 [`docs/release.md`](docs/release.md)。
@@ -259,7 +259,7 @@ docker compose -f docker-compose.manager.yml up --build
 
 ## 社区与反馈
 
-- Telegram：https://t.me/cpa_mp
+- Issues：https://github.com/tcatarina/CPA-Manager-Plus/issues
 
 ## 许可证
 

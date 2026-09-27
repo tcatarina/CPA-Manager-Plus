@@ -6,12 +6,10 @@ import { generateReleaseInfo } from './generate-release-info.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const repositoryUrl = 'https://github.com/tcatarina/CPA-Manager-Plus';
-const maximumTelegramCharacters = 3500;
 const prereleaseIdentifier = String.raw`(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)`;
 const releaseTagPattern = new RegExp(
   String.raw`^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-(${prereleaseIdentifier}(?:\.${prereleaseIdentifier})*))?$`
 );
-const htmlEntityPattern = /&(?:amp|lt|gt|quot|#[0-9]+|#[xX][0-9A-Fa-f]+);/y;
 
 const runGit = (args) =>
   execFileSync('git', args, {
@@ -23,7 +21,6 @@ const runGit = (args) =>
 const releasePaths = (tag) => ({
   chinese: `docs/release-notes/${tag}-zh.md`,
   english: `docs/release-notes/${tag}-en.md`,
-  telegram: `docs/release-posts/${tag}-telegram.html`,
 });
 
 const expectedLanguageLink = (tag, language) =>
@@ -42,77 +39,6 @@ export const parseReleaseTag = (tag) => {
     tag,
     prerelease: releaseTagPattern.exec(tag)?.[4] !== undefined,
   };
-};
-
-const validateEscapedHtmlText = (text, context) => {
-  for (let index = 0; index < text.length; index += 1) {
-    const character = text[index];
-    if (character === '<' || character === '>') {
-      fail(`${context} contains an unescaped ${character}`);
-    }
-    if (character !== '&') continue;
-
-    htmlEntityPattern.lastIndex = index;
-    const entity = htmlEntityPattern.exec(text);
-    if (!entity) fail(`${context} contains an invalid or unescaped HTML entity`);
-    index = htmlEntityPattern.lastIndex - 1;
-  }
-};
-
-export const validateTelegramHtml = (body) => {
-  if (typeof body !== 'string' || body.trim() === '') fail('Telegram release post is empty');
-  if (Array.from(body).length > maximumTelegramCharacters) {
-    fail(`Telegram release post exceeds ${maximumTelegramCharacters} characters`);
-  }
-  if (body.includes('发布截图') || /CPA-Manager-Plus\s*\[/.test(body)) {
-    fail('Telegram release post contains Markdown-only release sections');
-  }
-
-  const stack = [];
-  let offset = 0;
-  while (offset < body.length) {
-    if (body[offset] !== '<') {
-      const nextTag = body.indexOf('<', offset);
-      const textEnd = nextTag === -1 ? body.length : nextTag;
-      validateEscapedHtmlText(body.slice(offset, textEnd), 'Telegram release text');
-      offset = textEnd;
-      continue;
-    }
-
-    const end = body.indexOf('>', offset + 1);
-    if (end === -1) fail('Telegram release post contains an unterminated HTML tag');
-    const token = body.slice(offset, end + 1);
-
-    if (token === '<b>' || token === '<i>' || token === '<code>') {
-      stack.push(token.slice(1, -1));
-    } else if (token === '</b>' || token === '</i>' || token === '</code>') {
-      const tag = token.slice(2, -1);
-      if (stack.pop() !== tag) fail(`Telegram release post has unbalanced </${tag}>`);
-    } else if (token.startsWith('<a ') && token.endsWith('>')) {
-      const match = /^<a href="([^"]+)">$/.exec(token);
-      if (!match) fail('Telegram <a> tags must contain exactly one double-quoted href');
-      validateEscapedHtmlText(match[1], 'Telegram <a href>');
-      let url;
-      try {
-        url = new URL(match[1].replaceAll('&amp;', '&'));
-      } catch {
-        fail('Telegram <a href> values must be valid absolute URLs');
-      }
-      if (url.protocol !== 'https:' || url.hostname === '') {
-        fail('Telegram <a href> values must be absolute HTTPS URLs');
-      }
-      stack.push('a');
-    } else if (token === '</a>') {
-      if (stack.pop() !== 'a') fail('Telegram release post has unbalanced </a>');
-    } else {
-      fail(`Telegram release post contains unsupported HTML: ${token}`);
-    }
-
-    offset = end + 1;
-  }
-
-  if (stack.length > 0) fail(`Telegram release post has unclosed <${stack.at(-1)}> tag`);
-  return { characters: Array.from(body).length };
 };
 
 export const validateReleaseNotes = ({ tag, chinese, english }) => {
@@ -150,13 +76,11 @@ export const validateReleaseContent = ({
 
   const chinese = present.chinese ? readFile(path.resolve(repoRoot, paths.chinese)) : undefined;
   const english = present.english ? readFile(path.resolve(repoRoot, paths.english)) : undefined;
-  const telegram = present.telegram ? readFile(path.resolve(repoRoot, paths.telegram)) : undefined;
   generateReleaseInfo(tag, '0'.repeat(40), chinese);
   return {
     paths,
     notes:
       chinese && english ? validateReleaseNotes({ tag, chinese, english }) : { skipped: true },
-    telegram: telegram ? validateTelegramHtml(telegram) : { skipped: true },
   };
 };
 
@@ -167,12 +91,7 @@ const releaseTagFromPath = (filePath) => {
   const normalizedPath = normalizeChangedPath(filePath);
   const noteMatch = /^docs\/release-notes\/(.+)-(?:zh|en)\.md$/.exec(normalizedPath);
   if (noteMatch) return noteMatch[1];
-  const postMatch = /^docs\/release-posts\/(.+)-telegram\.html$/.exec(normalizedPath);
-  if (postMatch) return postMatch[1];
-  if (
-    normalizedPath.startsWith('docs/release-notes/') ||
-    normalizedPath.startsWith('docs/release-posts/')
-  ) {
+  if (normalizedPath.startsWith('docs/release-notes/')) {
     fail(`Unexpected release content path: ${normalizedPath}`);
   }
   return null;

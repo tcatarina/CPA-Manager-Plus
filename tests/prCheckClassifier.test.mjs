@@ -68,10 +68,6 @@ describe('PR check classifier', () => {
       ...noChecks,
       release_content: true,
     });
-    expect(classifyChangedFiles(['docs/release-posts/v1.2.3-telegram.html'])).toEqual({
-      ...noChecks,
-      release_content: true,
-    });
     for (const filePath of [
       'bin/release/validate-release.mjs',
       'bin/release/validate-release-contributors.mjs',
@@ -85,10 +81,7 @@ describe('PR check classifier', () => {
   });
 
   it('runs Node tests for every release automation script', () => {
-    for (const filePath of [
-      'bin/release/send-telegram-release.sh',
-      'bin/release/verify-published-release.mjs',
-    ]) {
+    for (const filePath of ['bin/release/verify-published-release.mjs']) {
       expect(classifyChangedFiles([filePath])).toEqual({
         ...noChecks,
         frontend: true,

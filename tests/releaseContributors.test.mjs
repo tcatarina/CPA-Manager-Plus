@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
   discoverExternalContributors,
   extractMarkdownAcknowledgements,
-  extractTelegramAcknowledgements,
   resolvePreviousReleaseTag,
   validateContributorAcknowledgements,
 } from '../bin/release/validate-release-contributors.mjs';
@@ -77,15 +76,6 @@ const english = `# CPA Manager Plus ${tag}
 ---
 `;
 
-const telegram = `🚀 <b>v1.2.3</b>
-
-🤝 <b>致谢</b>
-
-• <a href="https://github.com/HuiCheng">@HuiCheng</a> - 增加套餐剩余时间排序。
-• <a href="https://github.com/camy-x">@camy-x</a> - 保留手动模型价格。
-
-<a href="https://github.com/seakee/CPA-Manager-Plus/releases/tag/v1.2.3">GitHub Release</a>`;
-
 describe('release contributor discovery', () => {
   it('resolves the latest prior valid release tag', () => {
     expect(resolvePreviousReleaseTag({ tag, git: makeGit() })).toBe('v1.2.2');
@@ -129,21 +119,15 @@ describe('release contributor discovery', () => {
 describe('release acknowledgement validation', () => {
   const contributors = [{ login: 'HuiCheng' }, { login: 'camy-x' }];
 
-  it('extracts contributor handles from formal notes and Telegram profile links', () => {
+  it('extracts contributor handles from the formal release notes', () => {
     expect(extractMarkdownAcknowledgements(chinese)).toEqual({
-      present: true,
-      handles: ['HuiCheng', 'camy-x'],
-    });
-    expect(extractTelegramAcknowledgements(telegram)).toEqual({
       present: true,
       handles: ['HuiCheng', 'camy-x'],
     });
   });
 
-  it('requires the exact external contributor set in all three release surfaces', () => {
-    expect(
-      validateContributorAcknowledgements({ contributors, chinese, english, telegram })
-    ).toMatchObject({
+  it('requires the exact external contributor set in both release notes', () => {
+    expect(validateContributorAcknowledgements({ contributors, chinese, english })).toMatchObject({
       contributors: ['HuiCheng', 'camy-x'],
     });
 
@@ -152,31 +136,20 @@ describe('release acknowledgement validation', () => {
         contributors,
         chinese,
         english: english.replace('- @camy-x - Preserved manual model prices.\n', ''),
-        telegram,
       })
     ).toThrow('English release notes contributor handles do not match');
-
-    expect(() =>
-      validateContributorAcknowledgements({
-        contributors,
-        chinese,
-        english,
-        telegram: telegram.replace('https://github.com/camy-x', 'https://github.com/someone-else'),
-      })
-    ).toThrow('Telegram acknowledgement profile and handle differ');
   });
 
   it('rejects acknowledgement sections when there are no external contributors', () => {
-    expect(() =>
-      validateContributorAcknowledgements({ contributors: [], chinese, english, telegram })
-    ).toThrow('must omit acknowledgements');
+    expect(() => validateContributorAcknowledgements({ contributors: [], chinese, english })).toThrow(
+      'must omit acknowledgements'
+    );
 
     expect(
       validateContributorAcknowledgements({
         contributors: [],
         chinese: '# Release\n',
         english: '# Release\n',
-        telegram: '<b>Release</b>',
       })
     ).toMatchObject({ contributors: [] });
   });

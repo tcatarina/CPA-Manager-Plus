@@ -9,14 +9,12 @@ import {
   validateReleaseContent,
   validateReleaseNotes,
   validateReleaseTopology,
-  validateTelegramHtml,
 } from '../bin/release/validate-release.mjs';
 
 const releaseTag = 'v1.2.3';
 const releasePaths = {
   chinese: `docs/release-notes/${releaseTag}-zh.md`,
   english: `docs/release-notes/${releaseTag}-en.md`,
-  telegram: `docs/release-posts/${releaseTag}-telegram.html`,
 };
 
 const validMetadata = {
@@ -53,7 +51,6 @@ const englishNotes = `# CPA Manager Plus ${releaseTag}
 
 [中文 ->](https://github.com/tcatarina/CPA-Manager-Plus/blob/${releaseTag}/docs/release-notes/${releaseTag}-zh.md)
 `;
-const telegramPost = '<b>v1.2.3</b>\n\n• Release update';
 
 describe('release tag validation', () => {
   it('accepts stable and prerelease SemVer tags', () => {
@@ -92,24 +89,10 @@ describe('release content validation', () => {
     ).toThrow('English release notes must link');
   });
 
-  it('rejects unsupported Telegram markup and Markdown-only sections', () => {
-    expect(validateTelegramHtml(telegramPost)).toEqual({ characters: expect.any(Number) });
-    expect(validateTelegramHtml('<b>R&amp;D &#62; &#X3E; baseline</b>')).toEqual({
-      characters: expect.any(Number),
-    });
-    expect(() => validateTelegramHtml('<script>alert(1)</script>')).toThrow('unsupported HTML');
-    expect(() => validateTelegramHtml('<b>发布截图</b>')).toThrow('Markdown-only');
-    expect(() => validateTelegramHtml('<a href="http://example.com">link</a>')).toThrow('HTTPS');
-    expect(() => validateTelegramHtml('<b>R&D</b>')).toThrow('invalid or unescaped');
-    expect(() => validateTelegramHtml('<b>A > B</b>')).toThrow('unescaped >');
-    expect(() => validateTelegramHtml('<b>&bogus;</b>')).toThrow('invalid or unescaped');
-  });
-
-  it('treats release notes and the telegram post as optional', () => {
+  it('treats release notes as optional', () => {
     const contents = new Map([
       [releasePaths.chinese, chineseNotes],
       [releasePaths.english, englishNotes],
-      [releasePaths.telegram, telegramPost],
     ]);
     const readFile = (filePath) => contents.get(filePath.split('/').slice(-3).join('/'));
     const fileExists = (filePath) => contents.has(filePath.split('/').slice(-3).join('/'));
@@ -117,12 +100,10 @@ describe('release content validation', () => {
     expect(validateReleaseContent({ tag: releaseTag, readFile, fileExists })).toMatchObject({
       paths: releasePaths,
     });
-    contents.delete(releasePaths.telegram);
     contents.delete(releasePaths.english);
     contents.delete(releasePaths.chinese);
     expect(validateReleaseContent({ tag: releaseTag, readFile, fileExists })).toMatchObject({
       notes: { skipped: true },
-      telegram: { skipped: true },
     });
   });
 
@@ -130,7 +111,6 @@ describe('release content validation', () => {
     const contents = new Map([
       [releasePaths.chinese, chineseNotes],
       [releasePaths.english, englishNotes],
-      [releasePaths.telegram, telegramPost],
     ]);
     const readFile = (filePath) => contents.get(filePath.split('/').slice(-3).join('/'));
     const fileExists = (filePath) => contents.has(filePath.split('/').slice(-3).join('/'));
@@ -163,7 +143,6 @@ describe('release content validation', () => {
     const contents = new Map([
       [releasePaths.chinese, chineseNotes],
       [releasePaths.english, englishNotes],
-      [releasePaths.telegram, telegramPost],
     ]);
     const readFile = (filePath) => contents.get(filePath.split('/').slice(-3).join('/'));
     const fileExists = (filePath) => contents.has(filePath.split('/').slice(-3).join('/'));

@@ -279,7 +279,7 @@ describe('published release verification', () => {
     ).toThrow('draft has an unexpected published_at value');
   });
 
-  it('requires a complete healthy asset set for Telegram recovery', () => {
+  it('requires a complete healthy asset set for release recovery', () => {
     const assets = buildExpectedReleaseAssets(makeReleaseFixture(), tag);
     expect(
       verifyPublishedReleaseMetadata({

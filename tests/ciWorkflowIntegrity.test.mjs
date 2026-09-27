@@ -11,10 +11,6 @@ const pullRequestTemplate = readFileSync(
   path.join(repoRoot, '.github', 'pull_request_template.md'),
   'utf8'
 );
-const telegramScript = readFileSync(
-  path.join(repoRoot, 'bin', 'release', 'send-telegram-release.sh'),
-  'utf8'
-);
 
 const externalActions = (workflow) =>
   [...workflow.matchAll(/^\s*uses:\s*([^\s#]+)@([^\s#]+)/gm)]
@@ -173,12 +169,16 @@ describe('GitHub Actions workflow integrity', () => {
     expect(workflow).not.toContain('previous_tag');
   });
 
-  it('removes Telegram delivery from the release workflow', () => {
-    const workflow = readWorkflow('release.yml');
-
-    expect(workflow).not.toContain('notify_telegram');
-    expect(workflow).not.toContain('TELEGRAM_');
-    expect(workflow).not.toContain('send-telegram-release.sh');
+  it('removes Telegram delivery from the release surface', () => {
+    for (const name of ['release.yml', 'release-publish-recovery.yml']) {
+      const workflow = readWorkflow(name);
+      expect(workflow).not.toContain('telegram');
+      expect(workflow).not.toContain('TELEGRAM_');
+    }
+    expect(existsSync(path.join(workflowDir, 'release-telegram-recovery.yml'))).toBe(false);
+    expect(existsSync(path.join(repoRoot, 'bin', 'release', 'send-telegram-release.sh'))).toBe(
+      false
+    );
   });
 
   it('keeps published Release reruns idempotent and fail-closed', () => {
@@ -234,11 +234,6 @@ describe('GitHub Actions workflow integrity', () => {
     expect(inspectJob).toContain('echo "state=missing"');
   });
 
-  it('prevents automatic Telegram delivery on workflow reruns', () => {
-    expect(telegramScript).not.toContain('--retry');
-    expect(telegramScript).not.toContain('--retry-all-errors');
-  });
-
   it('preserves false-valued GitHub API booleans during release recovery', () => {
     const workflow = readWorkflow('release-publish-recovery.yml');
     const booleanFilter = 'if type == "boolean" then tostring else empty end';
@@ -262,34 +257,6 @@ describe('GitHub Actions workflow integrity', () => {
     expect(dockerJob).toContain(
       '"${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}"'
     );
-  });
-
-  it('provides a validated explicit Telegram recovery workflow', () => {
-    const workflow = readWorkflow('release-telegram-recovery.yml');
-    const notifyJob = jobBlock(workflow, 'notify');
-    const stepsOffset = notifyJob.indexOf('\n    steps:');
-    const jobConfiguration = notifyJob.slice(0, stepsOffset);
-    const deliveryStep = notifyJob.slice(notifyJob.indexOf('- name: Send Telegram'));
-
-    expect(workflow).toContain('workflow_dispatch:');
-    expect(workflow).toContain('confirm_resend:');
-    expect(workflow).toContain('type: boolean');
-    expect(notifyJob).toContain('refs/heads/main');
-    expect(notifyJob).toContain('name: Validate tagged release provenance');
-    expect(notifyJob).not.toContain('git checkout --detach');
-    expect(notifyJob).toContain('git merge-base --is-ancestor "${RELEASE_SHA}" origin/main');
-    expect(notifyJob).toContain('git merge-base --is-ancestor "${release_dev_sha}" origin/dev');
-    expect(notifyJob).toContain('--main-ref "${RELEASE_SHA}"');
-    expect(notifyJob).toContain('--dev-ref "${release_dev_sha}"');
-    expect(notifyJob).toContain('git show "${release_sha}:docs/release-posts/');
-    expect(notifyJob).toContain('--mode metadata');
-    expect(jobConfiguration).not.toContain('TELEGRAM_BOT_TOKEN');
-    expect(jobConfiguration).not.toContain('TELEGRAM_CHAT_ID');
-    expect(deliveryStep).toContain("TELEGRAM_STRICT: 'true'");
-    expect(deliveryStep).toContain(
-      'RELEASE_POST_PATH: ${{ steps.release_source.outputs.release_post }}'
-    );
-    expect(deliveryStep).toContain('run: bash bin/release/send-telegram-release.sh');
   });
 
   it('does not retain the main-only standalone Demo and Docs workflow', () => {

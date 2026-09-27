@@ -22,7 +22,6 @@ const runGit = (args) =>
 const releasePaths = (tag) => ({
   chinese: `docs/release-notes/${tag}-zh.md`,
   english: `docs/release-notes/${tag}-en.md`,
-  telegram: `docs/release-posts/${tag}-telegram.html`,
 });
 
 const parseArguments = (argv) => {
@@ -166,26 +165,6 @@ export const extractMarkdownAcknowledgements = (body) => {
   return { present: true, handles };
 };
 
-export const extractTelegramAcknowledgements = (body) => {
-  const text = String(body || '');
-  const marker = '<b>致谢</b>';
-  const markerIndex = text.indexOf(marker);
-  if (markerIndex === -1) return { present: false, handles: [] };
-
-  const handles = [];
-  const pattern = new RegExp(
-    `<a href="https://github\\.com/(${githubLoginPattern})">@(${githubLoginPattern})<\\/a>`,
-    'g'
-  );
-  for (const match of text.slice(markerIndex + marker.length).matchAll(pattern)) {
-    if (match[1] !== match[2]) {
-      fail(`Telegram acknowledgement profile and handle differ: ${match[1]} / ${match[2]}`);
-    }
-    handles.push(match[1]);
-  }
-  return { present: true, handles };
-};
-
 const validateHandleSet = ({ context, expected, actual, present }) => {
   if (actual.length !== new Set(actual).size) fail(`${context} contains duplicate contributor handles`);
   if (expected.length === 0) {
@@ -207,14 +186,12 @@ export const validateContributorAcknowledgements = ({
   contributors,
   chinese,
   english,
-  telegram,
 }) => {
   const expected = contributors.map(({ login }) => login);
   if (expected.length !== new Set(expected).size) fail('Contributor discovery returned duplicate logins');
 
   const chineseAcknowledgements = extractMarkdownAcknowledgements(chinese);
   const englishAcknowledgements = extractMarkdownAcknowledgements(english);
-  const telegramAcknowledgements = extractTelegramAcknowledgements(telegram);
 
   validateHandleSet({
     context: 'Chinese release notes',
@@ -228,18 +205,11 @@ export const validateContributorAcknowledgements = ({
     actual: englishAcknowledgements.handles,
     present: englishAcknowledgements.present,
   });
-  validateHandleSet({
-    context: 'Telegram release post',
-    expected,
-    actual: telegramAcknowledgements.handles,
-    present: telegramAcknowledgements.present,
-  });
 
   return {
     contributors: expected,
     chinese: chineseAcknowledgements,
     english: englishAcknowledgements,
-    telegram: telegramAcknowledgements,
   };
 };
 
@@ -262,7 +232,6 @@ const runCli = async () => {
       contributors: discovery.contributors,
       chinese: readFileSync(path.resolve(repoRoot, paths.chinese), 'utf8'),
       english: readFileSync(path.resolve(repoRoot, paths.english), 'utf8'),
-      telegram: readFileSync(path.resolve(repoRoot, paths.telegram), 'utf8'),
     });
 
     console.log(

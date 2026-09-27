@@ -25,9 +25,8 @@ release/<version> -> dev -> main -> v<version> tag -> GitHub Release
 
 1. Freeze the intended release scope on `dev`; do not merge unrelated work
    until the tag is created.
-2. Create `release/<version>` from `dev`, add the two release-note files and
-   the Telegram post, then merge its release PR into `dev` with a merge commit
-   (not squash or rebase).
+2. Create `release/<version>` from `dev`, add the two release-note files, then
+   merge its release PR into `dev` with a merge commit (not squash or rebase).
 3. Record the resulting `dev` commit from that release PR as the release SHA.
    Before promotion, confirm that `dev` still points to that exact SHA.
 4. Before opening the promotion PR, derive its `Related` section from the exact
@@ -145,102 +144,6 @@ Field requirements:
 - `update.upgrade_guide_url`: Valid HTTPS URL pointing to the upgrade guide within `https://github.com/seakee/CPA-Manager-Plus/`.
 - `compatibility.minimum_cpa_version`: Valid SemVer tag string, or `null` if there is no minimum CPA version requirement.
 
-## Community Release Post
-
-Each new release must include a reviewed Telegram post:
-
-```text
-docs/release-posts/<tag>-telegram.html
-```
-
-Example:
-
-```text
-docs/release-posts/v1.0.2-telegram.html
-```
-
-The repo-local `/release` workflow drafts this file before confirmation and
-shows the exact message in the release plan. Commit it in the same release PR
-as the Chinese and English release notes. Do not generate or rewrite the post
-inside GitHub Actions.
-
-Write the post for users and community members rather than code reviewers:
-
-- use `## <M> 月 <D> 日 v<version>` as the Markdown heading, with `更新内容`,
-  `注意事项`, `发布截图`, and `致谢` sections as applicable; end the Markdown
-  summary and release closeout with the separate title
-  `CPA-Manager-Plus [<M>月<D>日：<primary benefit>，<supporting benefit>]`;
-- make the standalone title reflect the release's main user value, without
-  implementation trivia; it is not part of the date/version heading;
-- list every release-relevant, user-visible semantic change in `更新内容`; do
-  not impose a fixed item count, but merge implementation commits that result
-  in the same user behavior;
-- keep each bullet to one concise sentence with the product subject and its
-  user-visible result; retain necessary product terms but omit CRUD lists,
-  commit/file counts, internal paths, tests, demo fixtures, and pure CI noise;
-- include `注意事项` only for upgrade, data, compatibility, configuration, or
-  meaningful behavior changes that users need to act on or understand;
-- include `发布截图` only when a specific screen or workflow should be shown;
-- keep `发布截图` and the standalone community-summary title in the Markdown
-  release summary only; Telegram HTML must omit both because the workflow does
-  not attach media and the title is not part of the message format;
-- include acknowledgements only for external contributors and preserve their
-  GitHub profile links;
-- keep claims factual and grounded in the formal release notes;
-- keep the complete HTML body within 3,500 characters.
-
-Markdown community-summary template:
-
-```markdown
-## <M> 月 <D> 日 v<version>
-
-### 更新内容
-
-- <用户可感知的更新>
-
-### 注意事项
-
-- <需要升级、配置或兼容性关注的事项>
-
-### 发布截图
-
-<具体页面或操作路径；没有推荐时省略本节>
-
-### 致谢
-
-- [@contributor](https://github.com/contributor) - <贡献带来的用户价值>
-
-CPA-Manager-Plus [<M>月<D>日：<primary benefit>，<supporting benefit>]
-```
-
-Omit optional sections that have no content. The Telegram HTML mirrors only
-the applicable `更新内容`, `注意事项`, and `致谢` sections; do not append the
-standalone Markdown community-summary title.
-
-Telegram posts use a conservative HTML subset supported by the Bot API:
-
-```text
-<b> <i> <code> <a href="https://example.com">...</a>
-```
-
-Escape other HTML characters. Do not include inline keyboard JSON, bot tokens,
-chat IDs, thread IDs, or any other secret in the post file. The release
-workflow adds one `View Release` button at send time.
-
-After the GitHub Release job succeeds, `.github/workflows/release.yml` reads the
-tag-matched post and sends it through Telegram Bot API `sendMessage`. Configure
-these repository secrets:
-
-```text
-TELEGRAM_BOT_TOKEN
-TELEGRAM_CHAT_ID
-TELEGRAM_MESSAGE_THREAD_ID  # optional, for a forum topic
-```
-
-Missing configuration or a missing post file skips the notification with an
-Actions warning. Telegram delivery failure must not roll back or invalidate an
-otherwise successful GitHub Release.
-
 ## Release CI Contract
 
 `.github/workflows/release.yml` is intentionally fail-closed. A tag push must
@@ -255,17 +158,17 @@ exist and satisfy the same content rules used by release preflight. For a
 Release PR targeting `dev`, CI also resolves the first-parent integration merges
 from the previous release tag through the frozen `dev` base SHA to merged PR
 metadata. External PR authors (excluding the repository owner and bots) must
-appear exactly once in both formal `Acknowledgements` sections and in the
-Telegram `致谢` section, whose handle must link to the matching GitHub profile.
+appear exactly once in both formal `Acknowledgements` sections, whose handle
+must link to the matching GitHub profile.
 Unresolvable explicit PR merges, missing contributors, extra contributors, or
 inconsistent handles fail the Release Content check.
 
 The preflight validates all of the following before building or publishing:
 
-- `docs/release-notes/<tag>-zh.md`, `docs/release-notes/<tag>-en.md`, and
-  `docs/release-posts/<tag>-telegram.html` exist and are non-empty;
-- `docs/release-notes/<tag>-zh.md` contains exactly one valid `cpamp-update`
-  metadata JSON comment matching the update-contract specification;
+- the release notes are optional; when present they are validated as a pair;
+- `docs/release-notes/<tag>-zh.md`, when present, contains exactly one valid
+  `cpamp-update` metadata JSON comment matching the update-contract
+  specification;
 - the two release notes contain reciprocal tag-pinned GitHub blob links;
 - the candidate SHA is the current `main` tip;
 - `main` is a two-parent `dev -> main` promotion merge, and `dev` is the
@@ -328,16 +231,6 @@ remains mutable. Unexpected assets, immutable incomplete Releases, changed
 metadata, changed content, or a partial Release on attempt 1 fail before Docker
 publishing. Same-name asset overwrites remain disabled.
 
-Telegram delivery is deliberately non-blocking after the GitHub Release is
-created. The job summary records `sent`, `skipped-config`,
-`skipped-missing-post`, `skipped-invalid-thread`, or `failed-delivery` without
-exposing secret values. A failed notification never rolls back a successful
-release. Automatic Telegram delivery runs only during workflow attempt 1, so a
-full workflow rerun cannot resend an already delivered post. The Bot API
-`sendMessage` request itself is attempted once because it is non-idempotent; an
-ambiguous network failure is handled as a possible delivery and requires the
-explicit recovery workflow rather than an automatic HTTP retry.
-
 Recovery rules:
 
 1. If pre-tag dry-run fails, fix the source or release files, repeat the Release
@@ -354,13 +247,8 @@ Recovery rules:
    payload exactly and whose Release remains mutable. An incomplete immutable
    Release requires a new version or separately approved administrative
    recovery. Publishing across registries is deterministic but not transactional.
-3. If GitHub Release succeeds and Telegram fails, repair the secret/post,
-   verify whether a message may already have been delivered, and explicitly
-   dispatch `Recover Telegram Release Notification` with its resend confirmation.
-   Dispatch it from `main`. The recovery job validates the historical tag and
-   complete published Release, extracts the post from the tag, and sends it with
-   the current protected `main` helper. Do not recover Telegram by rerunning the
-   complete release workflow.
+3. There is no notification transport. Recovery of a partially published
+   release is done by dispatching `Recover Release Publication` from `main`.
 
 For Actions monitoring, use the run-level state as the canonical decision
 surface. Require `status=completed`, a terminal conclusion, and the same

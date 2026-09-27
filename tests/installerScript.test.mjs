@@ -754,7 +754,7 @@ describe('installer script', () => {
     const result = runInstaller({
       CPAMP_INSTALL_MODE: 'stack',
       CPAMP_DEPLOY_METHOD: 'docker',
-      CPAMP_IMAGE: 'seakee/cpa-manager-plus:${BAD}',
+      CPAMP_IMAGE: 'tcatarina/cpa-manager-plus:${BAD}',
     });
 
     expect(result.status).toBe(1);
@@ -5560,7 +5560,7 @@ done
 set -euo pipefail
 for arg in "$@"; do
   case "$arg" in
-    https://raw.githubusercontent.com/seakee/CPA-Manager-Plus/update-channel/stable-version.txt)
+    https://raw.githubusercontent.com/tcatarina/CPA-Manager-Plus/update-channel/stable-version.txt)
       printf 'v1.2.3'
       exit 0
       ;;
@@ -5656,7 +5656,7 @@ exit 22
         `#!/usr/bin/env bash
 set -euo pipefail
 for arg in "$@"; do
-  if [ "$arg" = "https://raw.githubusercontent.com/seakee/CPA-Manager-Plus/update-channel/stable-version.txt" ]; then
+  if [ "$arg" = "https://raw.githubusercontent.com/tcatarina/CPA-Manager-Plus/update-channel/stable-version.txt" ]; then
     printf 'v1.2.3'
     exit 0
   fi

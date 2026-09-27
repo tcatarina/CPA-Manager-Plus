@@ -76,7 +76,6 @@ const triggersDemoDocs = (filePath) =>
 
 const triggersReleaseContent = (filePath) =>
   startsWithPath(filePath, 'docs/release-notes') ||
-  startsWithPath(filePath, 'docs/release-posts') ||
   filePath === 'bin/release/validate-release.mjs' ||
   filePath === 'bin/release/validate-release-contributors.mjs';
 

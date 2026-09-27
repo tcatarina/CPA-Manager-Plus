@@ -94,7 +94,7 @@ const verifyReleaseIdentity = ({ release, tag, prerelease, body, draft }) => {
   } else if (typeof release.published_at !== 'string' || release.published_at.trim() === '') {
     fail(`Existing GitHub Release ${tag} is not published`);
   }
-  if (normalizeBody(release.body) !== normalizeBody(body)) {
+  if (body !== undefined && normalizeBody(release.body) !== normalizeBody(body)) {
     fail(`Existing GitHub Release ${tag} body differs from the checked release notes`);
   }
 };
@@ -265,7 +265,7 @@ const runCli = () => {
   if (unknown.length > 0) fail(`Unknown arguments: ${unknown.map((key) => `--${key}`).join(', ')}`);
 
   const tag = requiredOption(options, 'tag');
-  const bodyPath = requiredOption(options, 'body-path');
+  const bodyPath = options['body-path'];
   const releaseJsonPath = requiredOption(options, 'release-json');
   const prerelease = booleanOption(options, 'prerelease');
   const mode = options.mode || 'artifact';
@@ -274,7 +274,7 @@ const runCli = () => {
   }
 
   const release = JSON.parse(readFileSync(releaseJsonPath, 'utf8'));
-  const body = readFileSync(bodyPath, 'utf8');
+  const body = bodyPath ? readFileSync(bodyPath, 'utf8') : undefined;
   const result =
     mode === 'metadata'
       ? verifyPublishedReleaseMetadata({ release, tag, prerelease, body })

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-repo="seakee/CPA-Manager-Plus"
-default_cpamp_image="seakee/cpa-manager-plus:latest"
+repo="tcatarina/CPA-Manager-Plus"
+default_cpamp_image="tcatarina/cpa-manager-plus:latest"
 default_cpa_image="eceasy/cli-proxy-api:latest"
 default_install_dir="${HOME:-.}/cpa-manager-plus"
 
@@ -2912,7 +2912,7 @@ remote-management:
   allow-remote: true
   disable-control-panel: false
   disable-auto-update-panel: true
-  panel-github-repository: "https://github.com/seakee/CPA-Manager-Plus"
+  panel-github-repository: "https://github.com/tcatarina/CPA-Manager-Plus"
 
 usage-statistics-enabled: true
 redis-usage-queue-retention-seconds: 60

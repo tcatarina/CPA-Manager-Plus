@@ -56,6 +56,6 @@ preview 跟随 beta Channel，RC 升级使用精确版本。Index 公布的 Dock
 
 首次启用可从包含元数据的 Beta、RC 或 Stable Release 开始。还没有 Stable 候选时，Index 的 stable 为 null，现有 latest 保持原值；Native 安装器可通过 CPAMP_VERSION 显式指定版本。历史无元数据版本不回填、不纳入候选。Index 尚未上线时，客户端显示检查失败。
 
-在 main 上运行 Recover update channels 可独立修复 Index，输入 withdraw_release 撤回精确版本，restore_release 恢复候选。流程不发送 Telegram。所有发布流程共享 release-publish 并发组，非强制 Git ref 更新还会拒绝冲突；冲突后重跑并重新计算。撤回最后一个经过验证的 Stable 后，允许 stable 通道暂无可推荐版本（stable channel can temporarily have no candidate after withdrawal，客户端表达为 no_candidate），此时不再发布 stable-version.txt。
+在 main 上运行 Recover update channels 可独立修复 Index，输入 withdraw_release 撤回精确版本，restore_release 恢复候选。所有发布流程共享 release-publish 并发组，非强制 Git ref 更新还会拒绝冲突；冲突后重跑并重新计算。撤回最后一个经过验证的 Stable 后，允许 stable 通道暂无可推荐版本（stable channel can temporarily have no candidate after withdrawal，客户端表达为 no_candidate），此时不再发布 stable-version.txt。
 
 撤回不会删除精确版本或自动降级运行中的实例；没有替代目标的旧 minor 标签可能继续存在，不应作为该维护线仍受支持的承诺。
