@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { generateReleaseInfo } from '../bin/release/generate-release-info.mjs';
 import { expectedReleaseAssetNames } from '../bin/release/verify-published-release.mjs';
-import { publishUpdateIndex } from '../bin/release/publish-update-index.mjs';
+import { publishUpdateIndex, verifyCandidate } from '../bin/release/publish-update-index.mjs';
 import { repository, resolveChannels } from '../bin/release/update-contract.mjs';
 
 function scenario({
@@ -278,6 +278,53 @@ describe('update index publication', () => {
     const s = scenario({ existing: true, tags: ['v2.0.0'], withdraw: 'v99.99.99' });
     await expect(s.run()).rejects.toThrow(
       'Withdraw target must be an existing published release with release-info.json'
+    );
+  });
+
+  it('accepts a release with immutability disabled and rejects an explicit false', () => {
+    const tag = 'v2.0.0';
+    const sha = 'a'.repeat(40);
+    const info = generateReleaseInfo(
+      tag,
+      sha,
+      '<!-- cpamp-update\n' +
+        JSON.stringify({
+          summary: { zh: '更新', en: 'Update' },
+          update: {
+            breaking: false,
+            migration_required: false,
+            minimum_direct_upgrade_version: null,
+            upgrade_guide_url: repository + '/releases/tag/' + tag,
+          },
+          compatibility: { minimum_cpa_version: null },
+        }) +
+        '\n-->'
+    );
+    const data = JSON.stringify(info);
+    const release = {
+      tag_name: tag,
+      draft: false,
+      prerelease: false,
+      published_at: '2026-09-08T00:00:00Z',
+      assets: expectedReleaseAssetNames(tag).map((name) => ({
+        name,
+        state: 'uploaded',
+        size: name === 'release-info.json' ? Buffer.byteLength(data) : 10,
+        digest:
+          name === 'release-info.json'
+            ? 'sha256:' + createHash('sha256').update(data).digest('hex')
+            : 'sha256:' + 'b'.repeat(64),
+      })),
+    };
+
+    const withoutFlag = { ...release };
+    delete withoutFlag.immutable;
+    expect(() => verifyCandidate(withoutFlag, info, sha)).not.toThrow();
+
+    expect(() => verifyCandidate({ ...release, immutable: true }, info, sha)).not.toThrow();
+
+    expect(() => verifyCandidate({ ...release, immutable: false }, info, sha)).toThrow(
+      'Unverified release candidate'
     );
   });
 });

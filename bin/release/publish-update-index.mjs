@@ -16,7 +16,7 @@ export function verifyCandidate(release, info, sha) {
   if (
     release.tag_name !== tag ||
     release.draft ||
-    !release.immutable ||
+    release.immutable === false ||
     !release.published_at ||
     release.prerelease !== (info.release.stage !== 'stable') ||
     sha !== info.release.source_commit
