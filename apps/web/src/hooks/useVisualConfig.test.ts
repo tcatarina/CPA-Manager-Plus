@@ -42,6 +42,132 @@ const mountUseVisualConfig = (): UseVisualConfigHarness => {
 };
 
 describe('useVisualConfig', () => {
+  it('loads v8 client API keys separately from upstream provider credentials', () => {
+    const harness = mountUseVisualConfig();
+    const yaml = [
+      'config-version: 8',
+      'access:',
+      '  api-keys: [sk-client-a, sk-client-b]',
+      'api-keys:',
+      '  gemini:',
+      '    - keys:',
+      '        - api-key: upstream-only',
+      '',
+    ].join('\n');
+
+    act(() => {
+      expect(harness.getCurrent().loadVisualValuesFromYaml(yaml).ok).toBe(true);
+    });
+
+    expect(harness.getCurrent().visualValues.apiKeysText).toBe('sk-client-a\nsk-client-b');
+    expect(harness.getCurrent().visualDirty).toBe(false);
+    expect(parseYaml(harness.getCurrent().applyVisualChangesToYaml(yaml))).toEqual(parseYaml(yaml));
+    harness.unmount();
+  });
+
+  it.each([
+    { value: '[sk-current]', expected: 'sk-current' },
+    { value: '[]', expected: '' },
+    { value: 'null', expected: '' },
+  ])('treats access.api-keys: $value as authoritative over legacy keys', ({ value, expected }) => {
+    const harness = mountUseVisualConfig();
+    const yaml = [
+      'access:',
+      `  api-keys: ${value}`,
+      'api-keys: [sk-stale]',
+      'auth:',
+      '  providers:',
+      '    config-api-key:',
+      '      api-key-entries: [sk-legacy]',
+      '',
+    ].join('\n');
+
+    act(() => {
+      expect(harness.getCurrent().loadVisualValuesFromYaml(yaml).ok).toBe(true);
+    });
+
+    expect(harness.getCurrent().visualValues.apiKeysText).toBe(expected);
+    harness.unmount();
+  });
+
+  it('keeps the legacy client-key fallback when a v8 document omits access.api-keys', () => {
+    const harness = mountUseVisualConfig();
+    act(() => {
+      expect(
+        harness.getCurrent().loadVisualValuesFromYaml('config-version: 8\napi-keys: [sk-old]\n').ok
+      ).toBe(true);
+    });
+    expect(harness.getCurrent().visualValues.apiKeysText).toBe('sk-old');
+    harness.unmount();
+  });
+
+  it.each(['sk-replacement', ''])(
+    'writes v8 client keys without replacing upstream groups: %s',
+    (keys) => {
+      const harness = mountUseVisualConfig();
+      const yaml = [
+        'config-version: 8',
+        'access:',
+        '  api-keys: [sk-old]',
+        '  custom-setting: preserve-me',
+        'api-keys:',
+        '  gemini:',
+        '    - keys:',
+        '        - api-key: upstream-only',
+        '',
+      ].join('\n');
+
+      act(() => {
+        expect(harness.getCurrent().loadVisualValuesFromYaml(yaml).ok).toBe(true);
+        harness.getCurrent().setVisualValues({ apiKeysText: keys });
+      });
+
+      const updated = harness.getCurrent().applyVisualChangesToYaml(yaml);
+      const parsed = parseYaml(updated);
+      expect(parsed.access).toEqual({
+        'api-keys': keys ? [keys] : [],
+        'custom-setting': 'preserve-me',
+      });
+      expect(parsed['api-keys']).toEqual({ gemini: [{ keys: [{ 'api-key': 'upstream-only' }] }] });
+      act(() => {
+        expect(harness.getCurrent().loadVisualValuesFromYaml(updated).ok).toBe(true);
+      });
+      expect(harness.getCurrent().visualValues.apiKeysText).toBe(keys);
+      harness.unmount();
+    }
+  );
+
+  it('creates the v8 client-key path when only upstream API-key groups exist', () => {
+    const harness = mountUseVisualConfig();
+    const yaml = 'api-keys:\n  gemini:\n    - keys:\n        - api-key: upstream-only\n';
+    act(() => {
+      expect(harness.getCurrent().loadVisualValuesFromYaml(yaml).ok).toBe(true);
+      harness.getCurrent().setVisualValues({ apiKeysText: 'sk-new' });
+    });
+    const parsed = parseYaml(harness.getCurrent().applyVisualChangesToYaml(yaml));
+    expect(parsed.access?.['api-keys']).toEqual(['sk-new']);
+    expect(parsed['api-keys']).toEqual({ gemini: [{ keys: [{ 'api-key': 'upstream-only' }] }] });
+    harness.unmount();
+  });
+
+  it('clears canonical client keys without reviving stale legacy keys', () => {
+    const harness = mountUseVisualConfig();
+    const yaml = 'config-version: 8\naccess:\n  api-keys: [sk-current]\napi-keys: [sk-stale]\n';
+    act(() => {
+      expect(harness.getCurrent().loadVisualValuesFromYaml(yaml).ok).toBe(true);
+      harness.getCurrent().setVisualValues({ apiKeysText: '' });
+    });
+    const updated = harness.getCurrent().applyVisualChangesToYaml(yaml);
+    const parsed = parseYaml(updated);
+    expect(parsed.access['api-keys']).toEqual([]);
+    expect(parsed['api-keys']).toBeUndefined();
+    act(() => {
+      harness.getCurrent().loadVisualValuesFromYaml(updated);
+    });
+    expect(harness.getCurrent().visualValues.apiKeysText).toBe('');
+    harness.unmount();
+  });
+
   it('clears the page dirty state when API keys are the only changed field', () => {
     const harness = mountUseVisualConfig();
     const initialYaml = ['proxy-url: http://proxy.local:8080', 'api-keys:', '  - old-key', ''].join(

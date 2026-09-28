@@ -3,6 +3,8 @@ import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ApiKeyMutation } from '@/components/config/ApiKeysCardEditor';
 import type { ManagerConfigResponse } from '@/services/api/usageService';
+import type { VisualConfigValues } from '@/types/visualConfig';
+import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
 
 vi.mock('react-dom', () => ({
   createPortal: (children: ReactNode) => children,
@@ -32,6 +34,7 @@ const mocks = vi.hoisted(() => ({
   capturedApiKeyOperationStart: null as (() => void) | null,
   capturedApiKeyOperationEnd: null as (() => void) | null,
   translate: (key: string) => key,
+  useRealVisualConfig: false,
   visualState: {
     apiKeysText: 'sk-old',
     dirty: false,
@@ -54,10 +57,14 @@ vi.mock('@/hooks/useMediaQuery', () => ({
 
 vi.mock('@/components/config/VisualConfigEditor', () => ({
   VisualConfigEditor: ({
+    values,
+    onChange,
     onPersistApiKeyMutation,
     onApiKeyOperationStart,
     onApiKeyOperationEnd,
   }: {
+    values: VisualConfigValues;
+    onChange: (values: Partial<VisualConfigValues>) => void;
     onPersistApiKeyMutation: (mutation: ApiKeyMutation) => Promise<string[]>;
     onApiKeyOperationStart: () => void;
     onApiKeyOperationEnd: () => void;
@@ -78,6 +85,8 @@ vi.mock('@/components/config/VisualConfigEditor', () => ({
 
     return (
       <div data-test="visual-editor">
+        <output data-test="api-keys">{values.apiKeysText}</output>
+        <button type="button" data-test="enable-debug" onClick={() => onChange({ debug: true })} />
         <button
           type="button"
           data-test="create-key"
@@ -134,7 +143,8 @@ vi.mock('./components/ManagerConfigPanel', () => ({
 }));
 
 vi.mock('@/components/config/DiffModal', () => ({
-  DiffModal: () => null,
+  DiffModal: ({ open, onConfirm }: { open: boolean; onConfirm: () => Promise<void> }) =>
+    open ? <button type="button" data-test="confirm-save" onClick={onConfirm} /> : null,
 }));
 
 vi.mock('@/components/config/ConfigSourceEditor', () => ({
@@ -210,22 +220,29 @@ vi.mock('@/stores', () => ({
   ) => selector({ setUsageServiceConfig: mocks.setUsageServiceConfig }),
 }));
 
-vi.mock('@/hooks/useVisualConfig', () => ({
-  useVisualConfig: () => ({
-    visualValues: {
-      apiKeysText: mocks.visualState.apiKeysText,
-      redisUsageQueueRetentionSeconds: '60',
+vi.mock('@/hooks/useVisualConfig', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/hooks/useVisualConfig')>();
+  return {
+    useVisualConfig: () => {
+      const realConfig = actual.useVisualConfig();
+      if (mocks.useRealVisualConfig) return realConfig;
+      return {
+        visualValues: {
+          apiKeysText: mocks.visualState.apiKeysText,
+          redisUsageQueueRetentionSeconds: '60',
+        },
+        visualDirty: mocks.visualState.dirty,
+        visualParseError: null,
+        visualValidationErrors: {},
+        visualHasPayloadValidationErrors: false,
+        loadVisualValuesFromYaml: mocks.loadVisualValuesFromYaml,
+        applyVisualChangesToYaml: mocks.applyVisualChangesToYaml,
+        setVisualValues: mocks.setVisualValues,
+        commitApiKeysText: mocks.commitApiKeysText,
+      };
     },
-    visualDirty: mocks.visualState.dirty,
-    visualParseError: null,
-    visualValidationErrors: {},
-    visualHasPayloadValidationErrors: false,
-    loadVisualValuesFromYaml: mocks.loadVisualValuesFromYaml,
-    applyVisualChangesToYaml: mocks.applyVisualChangesToYaml,
-    setVisualValues: mocks.setVisualValues,
-    commitApiKeysText: mocks.commitApiKeysText,
-  }),
-}));
+  };
+});
 
 vi.mock('@/services/api/configFile', () => ({
   configFileApi: {
@@ -391,6 +408,7 @@ const configureManagerMode = () => {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.useRealVisualConfig = false;
   Object.defineProperty(globalThis, 'localStorage', {
     configurable: true,
     value: {
@@ -447,6 +465,80 @@ afterEach(() => {
       value: originalDocument,
     });
   }
+});
+
+describe('ConfigPage v8 API-key persistence with the real visual config hook', () => {
+  it.each([
+    { operation: 'create', expectedKeys: ['sk-old', 'sk-new'] },
+    { operation: 'replace', expectedKeys: ['sk-new'] },
+    { operation: 'delete', expectedKeys: [] },
+  ])(
+    'keeps client and upstream keys separate across $operation, reload, and save',
+    async ({ operation, expectedKeys }) => {
+      mocks.useRealVisualConfig = true;
+      const initialConfig = {
+        debug: false,
+        access: { 'api-keys': ['sk-old'] },
+        'api-keys': {
+          gemini: [{ keys: [{ 'api-key': 'upstream-gemini' }] }],
+        },
+      };
+      let serverConfig = structuredClone(initialConfig);
+      mocks.fetchConfigYaml.mockImplementation(async () => stringifyYaml(serverConfig));
+      mocks.saveConfigYaml.mockImplementation(async (yaml: string) => {
+        serverConfig = parseYaml(yaml);
+      });
+      mocks.apiKeysList.mockImplementation(async () => [...serverConfig.access['api-keys']]);
+      mocks.apiKeysReplace.mockImplementation(async (keys: string[]) => {
+        serverConfig.access['api-keys'] = [...keys];
+      });
+      mocks.apiKeysReplaceValue.mockImplementation(async (oldKey: string, newKey: string) => {
+        serverConfig.access['api-keys'] = serverConfig.access['api-keys'].map((key) =>
+          key === oldKey ? newKey : key
+        );
+      });
+      mocks.apiKeysDeleteValue.mockImplementation(async (key: string) => {
+        serverConfig.access['api-keys'] = serverConfig.access['api-keys'].filter(
+          (existing) => existing !== key
+        );
+      });
+      const displayedKeys = () =>
+        renderer?.root.findByProps({ 'data-test': 'api-keys' }).children.join('');
+
+      await mountPage();
+      expect(displayedKeys()).toBe('sk-old');
+      expect(mocks.apiKeysList).not.toHaveBeenCalled();
+
+      await click(`${operation}-key`);
+      expect(mocks.apiKeyMutationErrors).toEqual([]);
+      expect(displayedKeys()).toBe(expectedKeys.join('\n'));
+      expect(mocks.saveConfigYaml).not.toHaveBeenCalled();
+      if (operation === 'create') {
+        expect(mocks.apiKeysReplace).toHaveBeenCalledWith(['sk-old', 'sk-new']);
+      } else if (operation === 'replace') {
+        expect(mocks.apiKeysReplaceValue).toHaveBeenCalledWith('sk-old', 'sk-new');
+      } else {
+        expect(mocks.apiKeysDeleteValue).toHaveBeenCalledWith('sk-old');
+      }
+
+      // A fresh mount must get the same list from YAML, not the canonical API response in memory.
+      act(() => renderer?.unmount());
+      await mountPage();
+      expect(displayedKeys()).toBe(expectedKeys.join('\n'));
+
+      await click('enable-debug');
+      await clickSave();
+      await click('confirm-save');
+
+      expect(mocks.saveConfigYaml).toHaveBeenCalledTimes(1);
+      expect(serverConfig).toEqual({
+        ...initialConfig,
+        debug: true,
+        access: { 'api-keys': expectedKeys },
+      });
+      expect(displayedKeys()).toBe(expectedKeys.join('\n'));
+    }
+  );
 });
 
 describe('ConfigPage API-key source snapshot safety', () => {

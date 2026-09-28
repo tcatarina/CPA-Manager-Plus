@@ -138,6 +138,11 @@ function parsePluginStoreAuthRules(raw: unknown): PluginStoreAuthRule[] {
 }
 
 function resolveApiKeysText(parsed: Record<string, unknown>): string {
+  const access = asRecord(parsed.access);
+  if (access && Object.prototype.hasOwnProperty.call(access, 'api-keys')) {
+    return parseApiKeysText(access['api-keys']);
+  }
+
   if (Object.prototype.hasOwnProperty.call(parsed, 'api-keys')) {
     return parseApiKeysText(parsed['api-keys']);
   }
@@ -1002,7 +1007,14 @@ export function useVisualConfig() {
             .split('\n')
             .map((key) => key.trim())
             .filter(Boolean);
-          if (apiKeys.length > 0) {
+          // In v8 the root mapping holds upstream credentials, not client keys.
+          const hasUpstreamKeyGroups = isMap(doc.getIn(['api-keys'], true));
+          if (docHas(doc, ['access', 'api-keys']) || hasUpstreamKeyGroups) {
+            ensureMapInDoc(doc, ['access']);
+            // Keep an explicit empty list authoritative over any legacy keys.
+            doc.setIn(['access', 'api-keys'], apiKeys);
+            if (!hasUpstreamKeyGroups) doc.deleteIn(['api-keys']);
+          } else if (apiKeys.length > 0) {
             doc.setIn(['api-keys'], apiKeys);
           } else if (docHas(doc, ['api-keys'])) {
             doc.deleteIn(['api-keys']);
