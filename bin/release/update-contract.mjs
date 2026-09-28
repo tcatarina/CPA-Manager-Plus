@@ -40,6 +40,14 @@ export const stageAllowed = (channel, stage) =>
   (channel === 'rc' && stage === 'rc') ||
   (channel === 'beta' && ['beta', 'rc'].includes(stage));
 export const nativeAssets = (tag) =>
+  ['darwin', 'linux']
+    .flatMap((os) =>
+      ['amd64', 'arm64'].map((arch) => `cpa-manager-plus_${tag}_${os}_${arch}.tar.gz`)
+    )
+    .sort();
+
+// Releases published before Windows targets were dropped still advertise them.
+export const legacyNativeAssets = (tag) =>
   ['darwin', 'linux', 'windows']
     .flatMap((os) =>
       ['amd64', 'arm64'].map(
@@ -47,6 +55,8 @@ export const nativeAssets = (tag) =>
       )
     )
     .sort();
+
+export const acceptableNativeAssets = (tag) => [nativeAssets(tag), legacyNativeAssets(tag)];
 export function validateInfo(info, tag) {
   const v = parseVersion(tag);
   if (
@@ -87,8 +97,11 @@ export function validateInfo(info, tag) {
   if (
     info.distribution?.docker?.image !== 'tcatarina/cpa-manager-plus' ||
     info.distribution.docker.version_tag !== tag ||
-    JSON.stringify([...(info.distribution?.native?.assets || [])].sort()) !==
-      JSON.stringify(nativeAssets(tag))
+    !acceptableNativeAssets(tag).some(
+      (allowed) =>
+        JSON.stringify([...(info.distribution?.native?.assets || [])].sort()) ===
+        JSON.stringify(allowed)
+    )
   )
     throw new Error('Invalid distribution');
   if (info.compatibility?.minimum_cpa_version !== null)

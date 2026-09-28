@@ -29,8 +29,6 @@ targets=(
   "linux arm64"
   "darwin amd64"
   "darwin arm64"
-  "windows amd64"
-  "windows arm64"
 )
 
 for target in "${targets[@]}"; do
@@ -38,10 +36,6 @@ for target in "${targets[@]}"; do
   package_name="${binary_name}_${version}_${goos}_${goarch}"
   package_dir="${work_dir}/${package_name}"
   exe_name="${binary_name}"
-
-  if [ "${goos}" = "windows" ]; then
-    exe_name="${binary_name}.exe"
-  fi
 
   mkdir -p "${package_dir}"
   (
@@ -52,24 +46,13 @@ for target in "${targets[@]}"; do
   cp "${repo_root}/README.md" "${package_dir}/README.md"
   cp -R "${repo_root}/docs" "${package_dir}/docs"
   cp "${repo_root}/LICENSE" "${package_dir}/LICENSE"
-  if [ "${goos}" = "windows" ]; then
-    cp "${native_script_src}/cpa-manager-plusctl.ps1" "${package_dir}/cpa-manager-plusctl.ps1"
-  else
-    cp "${native_script_src}/cpa-manager-plusctl.sh" "${package_dir}/cpa-manager-plusctl"
-    chmod 0755 "${package_dir}/cpa-manager-plusctl"
-  fi
+  cp "${native_script_src}/cpa-manager-plusctl.sh" "${package_dir}/cpa-manager-plusctl"
+  chmod 0755 "${package_dir}/cpa-manager-plusctl"
 
-  if [ "${goos}" = "windows" ]; then
-    (
-      cd "${work_dir}"
-      zip -qr "${out_dir}/${package_name}.zip" "${package_name}"
-    )
-  else
-    (
-      cd "${work_dir}"
-      tar -czf "${out_dir}/${package_name}.tar.gz" "${package_name}"
-    )
-  fi
+  (
+    cd "${work_dir}"
+    tar -czf "${out_dir}/${package_name}.tar.gz" "${package_name}"
+  )
 done
 
 (

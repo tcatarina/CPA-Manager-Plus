@@ -25,8 +25,6 @@ export const expectedReleaseAssetNames = (tag) => {
     `${prefix}_darwin_arm64.tar.gz`,
     `${prefix}_linux_amd64.tar.gz`,
     `${prefix}_linux_arm64.tar.gz`,
-    `${prefix}_windows_amd64.zip`,
-    `${prefix}_windows_arm64.zip`,
     'management.html',
   ].sort((left, right) => left.localeCompare(right));
 };
