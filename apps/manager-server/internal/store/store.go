@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"io"
 	"sync"
@@ -547,7 +548,11 @@ func (s *Store) CatchUpUsagePricing(ctx context.Context, limit int, nowMS int64)
 	if !ready {
 		return UsagePricingCatchUpResult{Pending: true}, nil
 	}
-	return s.UsagePricing.CatchUp(ctx, limit, nowMS)
+	result, err := s.UsagePricing.CatchUp(ctx, limit, nowMS)
+	if err != nil && errors.Is(err, usagepricing.ErrRetainedPricingHistoryIncomplete) {
+		return result, fmt.Errorf("%w: %w", ErrUsagePricingCoverageIncomplete, err)
+	}
+	return result, err
 }
 
 func (s *Store) RecordUsagePricingFailure(ctx context.Context, rollupErr error, nowMS int64) error {

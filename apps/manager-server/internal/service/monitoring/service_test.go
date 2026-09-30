@@ -2249,7 +2249,7 @@ func TestAccountHistoryReturnsRollupTotalsAndCost(t *testing.T) {
 	if history.SuccessRate == nil || math.Abs(*history.SuccessRate-0.5) > 0.000001 {
 		t.Fatalf("success rate = %#v", history.SuccessRate)
 	}
-	if math.Abs(history.TotalCost-2.055) > 0.000001 {
+	if history.TotalCost == nil || math.Abs(*history.TotalCost-2.055) > 0.000001 {
 		t.Fatalf("total cost = %v", history.TotalCost)
 	}
 	if history.FirstSeenMS == nil || *history.FirstSeenMS != baseMS+1_000 || history.LastSeenMS == nil || *history.LastSeenMS != baseMS+2_000 {
@@ -2477,7 +2477,7 @@ func TestAccountHistoryPricesContextTierBands(t *testing.T) {
 		t.Fatalf("history item = %#v", resp.Items)
 	}
 	const wantCost = 4.60002
-	if math.Abs(resp.Items[0].TotalCost-wantCost) > 0.000001 {
+	if resp.Items[0].TotalCost == nil || math.Abs(*resp.Items[0].TotalCost-wantCost) > 0.000001 {
 		t.Fatalf("history cost = %v, want %v", resp.Items[0].TotalCost, wantCost)
 	}
 }

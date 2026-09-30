@@ -289,7 +289,7 @@ type AccountHistoryItem struct {
 	SuccessCalls   int64                  `json:"success_calls"`
 	FailureCalls   int64                  `json:"failure_calls"`
 	TotalTokens    int64                  `json:"total_tokens"`
-	TotalCost      float64                `json:"total_cost"`
+	TotalCost      *float64               `json:"total_cost"`
 	SuccessRate    *float64               `json:"success_rate"`
 	FirstSeenMS    *int64                 `json:"first_seen_ms"`
 	LastSeenMS     *int64                 `json:"last_seen_ms"`
@@ -1773,7 +1773,8 @@ func (s *Service) accountHistory(ctx context.Context, req AccountHistoryRequest)
 			return AccountHistoryResponse{}, err
 		}
 		processed = result.Processed
-		if _, err := s.store.CatchUpUsagePricing(ctx, accountHistoryCatchUpLimit, generatedAtMS); err != nil {
+		if _, err := s.store.CatchUpUsagePricing(ctx, accountHistoryCatchUpLimit, generatedAtMS); err != nil &&
+			!errors.Is(err, store.ErrUsagePricingCoverageIncomplete) {
 			return AccountHistoryResponse{}, err
 		}
 	}
@@ -1836,7 +1837,14 @@ func (s *Service) accountHistory(ctx context.Context, req AccountHistoryRequest)
 	loadTotals := func(readKeys []string) (map[string]*accountHistoryTotal, error) {
 		pricingSnapshot, err := s.store.LoadUsagePricingAccountSnapshot(ctx, readKeys)
 		if err != nil {
-			return nil, err
+			if !errors.Is(err, store.ErrUsagePricingCoverageIncomplete) {
+				return nil, err
+			}
+			rows, rollupErr := s.store.AccountHistoryRollupRows(ctx, readKeys)
+			if rollupErr != nil {
+				return nil, rollupErr
+			}
+			return buildUnpricedAccountHistoryTotals(rows), nil
 		}
 		prices := pricingSnapshot.Prices
 		if pricingSnapshot.Available {
@@ -1935,7 +1943,7 @@ func (s *Service) accountHistory(ctx context.Context, req AccountHistoryRequest)
 			SuccessCalls:   total.successCalls,
 			FailureCalls:   total.failureCalls,
 			TotalTokens:    total.totalTokens,
-			TotalCost:      total.cost,
+			TotalCost:      accountHistoryCostPointer(total),
 			SuccessRate:    successRate,
 			FirstSeenMS:    nullableMSPointer(total.firstSeenMS),
 			LastSeenMS:     nullableMSPointer(total.lastSeenMS),
@@ -4072,13 +4080,14 @@ func buildHeaderSnapshots(items []store.HeaderSnapshot) []HeaderSnapshot {
 }
 
 type accountHistoryTotal struct {
-	requests     int64
-	successCalls int64
-	failureCalls int64
-	totalTokens  int64
-	cost         float64
-	firstSeenMS  int64
-	lastSeenMS   int64
+	requests      int64
+	successCalls  int64
+	failureCalls  int64
+	totalTokens   int64
+	cost          float64
+	costAvailable bool
+	firstSeenMS   int64
+	lastSeenMS    int64
 }
 
 func accountHistoryTargetKey(target AccountHistoryTarget) (string, bool) {
@@ -4181,12 +4190,34 @@ func accountLatestRequestFromStore(request store.LatestAccountRequest) *AccountL
 	}
 }
 
-func buildAccountHistoryTotals(rows []store.AccountHistoryRollupRow, prices map[string]store.ModelPrice) map[string]*accountHistoryTotal {
+func buildUnpricedAccountHistoryTotals(rows []store.AccountHistoryRollupRow) map[string]*accountHistoryTotal {
 	totals := map[string]*accountHistoryTotal{}
 	for _, row := range rows {
 		total := totals[row.AccountKey]
 		if total == nil {
 			total = &accountHistoryTotal{}
+			totals[row.AccountKey] = total
+		}
+		total.requests += row.Calls
+		total.successCalls += row.SuccessCalls
+		total.failureCalls += row.FailureCalls
+		total.totalTokens += row.TotalTokens
+		if total.firstSeenMS == 0 || (row.FirstSeenMS > 0 && row.FirstSeenMS < total.firstSeenMS) {
+			total.firstSeenMS = row.FirstSeenMS
+		}
+		if row.LastSeenMS > total.lastSeenMS {
+			total.lastSeenMS = row.LastSeenMS
+		}
+	}
+	return totals
+}
+
+func buildAccountHistoryTotals(rows []store.AccountHistoryRollupRow, prices map[string]store.ModelPrice) map[string]*accountHistoryTotal {
+	totals := map[string]*accountHistoryTotal{}
+	for _, row := range rows {
+		total := totals[row.AccountKey]
+		if total == nil {
+			total = &accountHistoryTotal{costAvailable: true}
 			totals[row.AccountKey] = total
 		}
 		total.requests += row.Calls
@@ -4225,7 +4256,7 @@ func buildPricingAccountHistoryTotals(rows []store.UsagePricingAccountRow, price
 	for _, row := range rows {
 		total := totals[row.AccountKey]
 		if total == nil {
-			total = &accountHistoryTotal{}
+			total = &accountHistoryTotal{costAvailable: true}
 			totals[row.AccountKey] = total
 		}
 		total.requests += row.Calls
@@ -4278,6 +4309,7 @@ func mergeAliasedAccountHistoryTotals(totals map[string]*accountHistoryTotal, al
 		primary.failureCalls += legacy.failureCalls
 		primary.totalTokens += legacy.totalTokens
 		primary.cost += legacy.cost
+		primary.costAvailable = primary.costAvailable && legacy.costAvailable
 		if primary.firstSeenMS == 0 || (legacy.firstSeenMS > 0 && legacy.firstSeenMS < primary.firstSeenMS) {
 			primary.firstSeenMS = legacy.firstSeenMS
 		}
@@ -4286,6 +4318,14 @@ func mergeAliasedAccountHistoryTotals(totals map[string]*accountHistoryTotal, al
 		}
 		delete(totals, legacyKey)
 	}
+}
+
+func accountHistoryCostPointer(total *accountHistoryTotal) *float64 {
+	if total == nil || !total.costAvailable {
+		return nil
+	}
+	value := total.cost
+	return &value
 }
 
 func accountWindowUsageTargetKey(target AccountWindowUsageTarget) (string, bool) {

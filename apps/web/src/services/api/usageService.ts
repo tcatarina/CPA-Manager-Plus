@@ -1104,7 +1104,7 @@ export interface MonitoringAccountHistoryItem {
   success_calls: number;
   failure_calls: number;
   total_tokens: number;
-  total_cost: number;
+  total_cost: number | null;
   success_rate: number | null;
   first_seen_ms: number | null;
   last_seen_ms: number | null;

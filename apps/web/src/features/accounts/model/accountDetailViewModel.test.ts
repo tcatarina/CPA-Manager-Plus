@@ -244,6 +244,19 @@ const makeMonitoringValue = (
 });
 
 describe('accountDetailViewModel', () => {
+  it('preserves unavailable historical cost without dropping core history', () => {
+    const viewModel = buildAccountDetailViewModel(makeRow(), {
+      history: makeHistory({ total_cost: null }),
+    });
+
+    expect(viewModel.history).toMatchObject({
+      matched: true,
+      totalRequests: 12,
+      totalTokens: 2400,
+      totalCost: null,
+    });
+  });
+
   it('uses the full unified plan label for credential details', () => {
     const viewModel = buildAccountDetailViewModel(
       makeRow({
