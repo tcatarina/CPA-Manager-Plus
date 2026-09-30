@@ -11,6 +11,14 @@ import (
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/usageidentity"
 )
 
+var retainedPricingColumns = []string{
+	"timestamp_ms", "model", "requested_model", "resolved_model", "service_tier", "failed",
+	"input_tokens", "output_tokens", "reasoning_tokens", "cached_tokens", "cache_tokens",
+	"cache_read_tokens", "cache_creation_tokens", "normalized_total_input_tokens", "total_tokens", "latency_ms",
+	"provider", "auth_index", "source", "source_hash", "account_snapshot", "auth_label_snapshot",
+	"auth_file_snapshot", "auth_provider_snapshot", "auth_project_id_snapshot", "auth_account_id_snapshot",
+}
+
 // LoadHourlyRowsFromEventsTx bypasses a deficient pricing cache without writing
 // to it. A compatible retained projection supplies archived events; raw events
 // after its watermark supply the tail, with no overlapping IDs.
@@ -52,6 +60,95 @@ func (r *repository) LoadAccountRowsFromEventsTx(ctx context.Context, tx *sql.Tx
 	return sortedAccountRows(grouped), nil
 }
 
+// VerifyRetainedPricingRebuildSourceTx proves that every raw event removed by
+// the supported archive flow is still available from the compatible monitoring
+// projection. Structural model-price mutations call this before commit so an
+// unrecoverable pricing revision can never become active.
+func VerifyRetainedPricingRebuildSourceTx(ctx context.Context, tx *sql.Tx) error {
+	_, _, err := retainedPricingRebuildSourceTx(ctx, tx)
+	return err
+}
+
+// retainedPricingRebuildSourceTx returns the exact event source and target ID
+// used only for full pricing rebuilds. Live raw rows are authoritative when
+// present; the projection contributes only events whose raw rows were deleted.
+// This keeps the rebuild source duplicate-free while preserving original event
+// IDs for the existing checkpoint state machine.
+func retainedPricingRebuildSourceTx(ctx context.Context, tx *sql.Tx) (string, int64, error) {
+	var hasDeletedRaw bool
+	if err := tx.QueryRowContext(ctx, `select exists (
+		select 1 from usage_archive_event_refs where raw_deleted_at_ms is not null
+	)`).Scan(&hasDeletedRaw); err != nil {
+		return "", 0, err
+	}
+	if !hasDeletedRaw {
+		latestID, err := latestEventID(ctx, tx)
+		return "usage_events", latestID, err
+	}
+
+	var schemaVersion int
+	var revision, status string
+	var coverageID int64
+	if err := tx.QueryRowContext(ctx, `select schema_version, structure_revision, status, coverage_event_id
+		from usage_monitoring_rollup_state where rollup_name = 'projection_v1'`).Scan(
+		&schemaVersion, &revision, &status, &coverageID,
+	); err != nil {
+		return "", 0, fmt.Errorf("retained usage projection state is unavailable: %w", err)
+	}
+	if schemaVersion != 1 ||
+		revision != usageidentity.MonitoringProjectionStructureRevision() ||
+		status == "clearing" {
+		return "", 0, fmt.Errorf("retained usage projection is incompatible or rebuilding")
+	}
+
+	var incomplete bool
+	if err := tx.QueryRowContext(ctx, `select exists (
+		select 1
+		from usage_archive_event_refs archived
+		left join usage_monitoring_event_projection_v1 p
+			on p.event_id = archived.raw_event_id
+		where archived.raw_deleted_at_ms is not null
+			and not exists (
+				select 1 from usage_events live where live.event_hash = archived.event_hash
+			)
+			and (archived.raw_event_id > ? or p.event_id is null)
+	)`, coverageID).Scan(&incomplete); err != nil {
+		return "", 0, err
+	}
+	if incomplete {
+		return "", 0, fmt.Errorf("retained usage projection is missing a deleted pricing event")
+	}
+
+	var latestID int64
+	if err := tx.QueryRowContext(ctx, `select coalesce(max(event_id), 0) from (
+		select id as event_id from usage_events
+		union all
+		select archived.raw_event_id as event_id
+		from usage_archive_event_refs archived
+		where archived.raw_deleted_at_ms is not null
+			and not exists (
+				select 1 from usage_events live where live.event_hash = archived.event_hash
+			)
+	)`).Scan(&latestID); err != nil {
+		return "", 0, err
+	}
+
+	source := fmt.Sprintf(`(select e.id, e.%s from usage_events e
+		union all
+		select p.event_id as id, p.%s
+		from usage_archive_event_refs archived
+		join %s p on p.event_id = archived.raw_event_id
+		where archived.raw_deleted_at_ms is not null
+			and not exists (
+				select 1 from usage_events live where live.event_hash = archived.event_hash
+			))`,
+		strings.Join(retainedPricingColumns, ", e."),
+		strings.Join(retainedPricingColumns, ", p."),
+		usageprojection.EventTable,
+	)
+	return source, latestID, nil
+}
+
 func retainedEventSourceTx(ctx context.Context, tx *sql.Tx) (string, error) {
 	source := "usage_events"
 	var schemaVersion int
@@ -66,19 +163,10 @@ func retainedEventSourceTx(ctx context.Context, tx *sql.Tx) (string, error) {
 	}
 	if err == nil && schemaVersion == 1 && coverageID > 0 &&
 		revision == usageidentity.MonitoringProjectionStructureRevision() && status != "clearing" {
-		// These are the inputs used by the existing pricing-band query. Do not
-		// synthesize request details or trust an obsolete projection identity.
-		columns := []string{
-			"timestamp_ms", "model", "requested_model", "resolved_model", "service_tier", "failed",
-			"input_tokens", "output_tokens", "reasoning_tokens", "cached_tokens", "cache_tokens",
-			"cache_read_tokens", "cache_creation_tokens", "normalized_total_input_tokens", "total_tokens", "latency_ms",
-			"provider", "auth_index", "source", "source_hash", "account_snapshot", "auth_label_snapshot",
-			"auth_file_snapshot", "auth_provider_snapshot", "auth_project_id_snapshot", "auth_account_id_snapshot",
-		}
 		source = fmt.Sprintf(`(select p.event_id as id, p.%s from %s p where p.event_id <= %d
 			union all select e.id, e.%s from usage_events e where e.id > %d)`,
-			strings.Join(columns, ", p."), usageprojection.EventTable, coverageID,
-			strings.Join(columns, ", e."), coverageID,
+			strings.Join(retainedPricingColumns, ", p."), usageprojection.EventTable, coverageID,
+			strings.Join(retainedPricingColumns, ", e."), coverageID,
 		)
 	}
 	return source, nil
