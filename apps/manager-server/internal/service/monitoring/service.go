@@ -1837,24 +1837,22 @@ func (s *Service) accountHistory(ctx context.Context, req AccountHistoryRequest)
 	loadTotals := func(readKeys []string) (map[string]*accountHistoryTotal, error) {
 		pricingSnapshot, err := s.store.LoadUsagePricingAccountSnapshot(ctx, readKeys)
 		if err != nil {
-			if !errors.Is(err, store.ErrUsagePricingCoverageIncomplete) {
-				return nil, err
-			}
-			rows, rollupErr := s.store.AccountHistoryRollupRows(ctx, readKeys)
-			if rollupErr != nil {
-				return nil, rollupErr
-			}
-			return buildUnpricedAccountHistoryTotals(rows), nil
-		}
-		prices := pricingSnapshot.Prices
-		if pricingSnapshot.Available {
-			return buildPricingAccountHistoryTotals(pricingSnapshot.Rows, prices), nil
-		}
-		rows, err := s.store.AccountHistoryRollupRows(ctx, readKeys)
-		if err != nil {
 			return nil, err
 		}
-		return buildAccountHistoryTotals(rows, prices), nil
+		totals := buildPricingAccountHistoryTotals(pricingSnapshot.Rows, pricingSnapshot.Prices)
+		if len(pricingSnapshot.PricingIncompleteAccountKeys) == 0 {
+			return totals, nil
+		}
+		unpricedRows := make([]store.AccountHistoryRollupRow, 0, len(pricingSnapshot.CoreRows))
+		for _, row := range pricingSnapshot.CoreRows {
+			if _, incomplete := pricingSnapshot.PricingIncompleteAccountKeys[row.AccountKey]; incomplete {
+				unpricedRows = append(unpricedRows, row)
+			}
+		}
+		for key, total := range buildUnpricedAccountHistoryTotals(unpricedRows) {
+			totals[key] = total
+		}
+		return totals, nil
 	}
 	totals, err := loadTotals(keys)
 	if err != nil {
@@ -4202,45 +4200,6 @@ func buildUnpricedAccountHistoryTotals(rows []store.AccountHistoryRollupRow) map
 		total.successCalls += row.SuccessCalls
 		total.failureCalls += row.FailureCalls
 		total.totalTokens += row.TotalTokens
-		if total.firstSeenMS == 0 || (row.FirstSeenMS > 0 && row.FirstSeenMS < total.firstSeenMS) {
-			total.firstSeenMS = row.FirstSeenMS
-		}
-		if row.LastSeenMS > total.lastSeenMS {
-			total.lastSeenMS = row.LastSeenMS
-		}
-	}
-	return totals
-}
-
-func buildAccountHistoryTotals(rows []store.AccountHistoryRollupRow, prices map[string]store.ModelPrice) map[string]*accountHistoryTotal {
-	totals := map[string]*accountHistoryTotal{}
-	for _, row := range rows {
-		total := totals[row.AccountKey]
-		if total == nil {
-			total = &accountHistoryTotal{costAvailable: true}
-			totals[row.AccountKey] = total
-		}
-		total.requests += row.Calls
-		total.successCalls += row.SuccessCalls
-		total.failureCalls += row.FailureCalls
-		total.totalTokens += row.TotalTokens
-		total.cost += pricing.CostForModelCandidatesWithServiceTier(
-			[]string{row.BillingModel, row.Model},
-			row.ServiceTier,
-			pricing.ModelTokens{
-				InputTokens:             row.InputTokens,
-				OutputTokens:            row.OutputTokens,
-				CachedTokens:            row.CachedTokens,
-				CacheReadTokens:         row.CacheReadTokens,
-				CacheCreationTokens:     row.CacheCreationTokens,
-				LongInputTokens:         row.LongInputTokens,
-				LongOutputTokens:        row.LongOutputTokens,
-				LongCachedTokens:        row.LongCachedTokens,
-				LongCacheReadTokens:     row.LongCacheReadTokens,
-				LongCacheCreationTokens: row.LongCacheCreationTokens,
-			},
-			prices,
-		)
 		if total.firstSeenMS == 0 || (row.FirstSeenMS > 0 && row.FirstSeenMS < total.firstSeenMS) {
 			total.firstSeenMS = row.FirstSeenMS
 		}

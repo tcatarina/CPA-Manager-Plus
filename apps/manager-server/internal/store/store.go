@@ -133,10 +133,12 @@ type UsageHourlyPricingSnapshot struct {
 }
 
 type UsagePricingAccountSnapshot struct {
-	Rows      []UsagePricingAccountRow
-	State     UsagePricingState
-	Available bool
-	Prices    map[string]ModelPrice
+	CoreRows                     []AccountHistoryRollupRow
+	Rows                         []UsagePricingAccountRow
+	State                        UsagePricingState
+	Available                    bool
+	PricingIncompleteAccountKeys map[string]struct{}
+	Prices                       map[string]ModelPrice
 }
 
 type Store struct {
@@ -720,17 +722,49 @@ func (s *Store) LoadUsagePricingAccountSnapshot(ctx context.Context, accountKeys
 	if err != nil {
 		return UsagePricingAccountSnapshot{}, err
 	}
-	rows, state, available, pricingErr := s.UsagePricing.LoadAccountRowsTx(ctx, tx, accountKeys)
-	if pricingErr != nil || !available || !accountPricingCoverageMatches(coreRows, rows) {
-		rows, err = s.UsagePricing.LoadAccountRowsFromEventsTx(ctx, tx, accountKeys)
-		if err != nil {
-			return UsagePricingAccountSnapshot{}, fmt.Errorf("%w: retained account event query: %w", ErrUsagePricingCoverageIncomplete, err)
-		}
-		if !accountPricingCoverageMatches(coreRows, rows) {
-			return UsagePricingAccountSnapshot{}, ErrUsagePricingCoverageIncomplete
-		}
-		available = true
+	rows, state, available, err := s.UsagePricing.LoadAccountRowsTx(ctx, tx, accountKeys)
+	if err != nil {
+		return UsagePricingAccountSnapshot{}, err
 	}
+	if !available {
+		rows = nil
+	}
+
+	incomplete := accountPricingCoverageIncompleteKeys(coreRows, rows)
+	if len(incomplete) > 0 {
+		recoveryKeys := make([]string, 0, len(incomplete))
+		for key := range incomplete {
+			recoveryKeys = append(recoveryKeys, key)
+		}
+		recoveredRows, recoveryErr := s.UsagePricing.LoadAccountRowsFromEventsTx(ctx, tx, recoveryKeys)
+		if recoveryErr != nil {
+			return UsagePricingAccountSnapshot{}, recoveryErr
+		}
+
+		recoveryCoreRows := make([]AccountHistoryRollupRow, 0, len(coreRows))
+		for _, row := range coreRows {
+			if _, needsRecovery := incomplete[row.AccountKey]; needsRecovery {
+				recoveryCoreRows = append(recoveryCoreRows, row)
+			}
+		}
+		stillIncomplete := accountPricingCoverageIncompleteKeys(recoveryCoreRows, recoveredRows)
+
+		completeRows := make([]UsagePricingAccountRow, 0, len(rows)+len(recoveredRows))
+		for _, row := range rows {
+			if _, needsRecovery := incomplete[row.AccountKey]; !needsRecovery {
+				completeRows = append(completeRows, row)
+			}
+		}
+		for _, row := range recoveredRows {
+			if _, unresolved := stillIncomplete[row.AccountKey]; !unresolved {
+				completeRows = append(completeRows, row)
+			}
+		}
+		rows = completeRows
+		incomplete = stillIncomplete
+	}
+	available = len(incomplete) == 0
+
 	prices, err := s.ModelPrices.LoadAllTx(ctx, tx)
 	if err != nil {
 		return UsagePricingAccountSnapshot{}, err
@@ -739,10 +773,12 @@ func (s *Store) LoadUsagePricingAccountSnapshot(ctx context.Context, accountKeys
 		return UsagePricingAccountSnapshot{}, err
 	}
 	return UsagePricingAccountSnapshot{
-		Rows:      rows,
-		State:     state,
-		Available: available,
-		Prices:    prices,
+		CoreRows:                     coreRows,
+		Rows:                         rows,
+		State:                        state,
+		Available:                    available,
+		PricingIncompleteAccountKeys: incomplete,
+		Prices:                       prices,
 	}, nil
 }
 

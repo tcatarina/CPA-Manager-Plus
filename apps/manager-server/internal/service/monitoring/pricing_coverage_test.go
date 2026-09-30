@@ -265,6 +265,49 @@ func TestAccountHistoryDegradesWhenArchivedPricingCannotBeRecovered(t *testing.T
 	}
 }
 
+func TestAccountHistoryIsolatesUnrecoverablePricingByAccount(t *testing.T) {
+	db, sqlDB, _, _ := pricingCoverageFixture(t)
+	ctx := context.Background()
+	request := pricingCoverageAccountRequest()
+	want, err := New(db).AccountHistory(ctx, request)
+	if err != nil || len(want.Items) != 2 || want.Items[0].TotalCost == nil || want.Items[1].TotalCost == nil {
+		t.Fatalf("baseline account history = %#v, %v", want.Items, err)
+	}
+
+	if _, err := sqlDB.ExecContext(ctx, `delete from usage_pricing_account_rollups_v1 where auth_index = 'a';
+		delete from usage_monitoring_event_projection_v1
+		where auth_index = 'a' and event_id not in (select id from usage_events)`); err != nil {
+		t.Fatal(err)
+	}
+	got, err := New(db).AccountHistory(ctx, request)
+	if err != nil || len(got.Items) != len(want.Items) {
+		t.Fatalf("isolated account history = %#v, %v", got.Items, err)
+	}
+
+	wantA := want.Items[0]
+	wantA.TotalCost = nil
+	if !reflect.DeepEqual(got.Items[0], wantA) {
+		t.Fatalf("incomplete account was not isolated: got=%#v want=%#v", got.Items[0], wantA)
+	}
+	if !reflect.DeepEqual(got.Items[1], want.Items[1]) {
+		t.Fatalf("complete account pricing was degraded: got=%#v want=%#v", got.Items[1], want.Items[1])
+	}
+}
+
+func TestAccountHistoryDoesNotHidePricingRecoveryQueryErrors(t *testing.T) {
+	db, sqlDB, _, _ := pricingCoverageFixture(t)
+	ctx := context.Background()
+	if _, err := sqlDB.ExecContext(ctx, `delete from usage_pricing_account_rollups_v1 where auth_index = 'a';
+		alter table usage_monitoring_event_projection_v1
+		rename column normalized_total_input_tokens to unavailable_tokens`); err != nil {
+		t.Fatal(err)
+	}
+	_, err := New(db).AccountHistory(ctx, pricingCoverageAccountRequest())
+	if err == nil || errors.Is(err, store.ErrUsagePricingCoverageIncomplete) {
+		t.Fatalf("pricing recovery query error was hidden: %v", err)
+	}
+}
+
 func TestAccountHistoryDoesNotHideCoreHistoryReadErrors(t *testing.T) {
 	db, sqlDB, _, _ := pricingCoverageFixture(t)
 	ctx := context.Background()
