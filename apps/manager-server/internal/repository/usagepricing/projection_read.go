@@ -45,18 +45,21 @@ func (r *repository) LoadHourlyRowsFromEventsTx(ctx context.Context, tx *sql.Tx,
 }
 
 // LoadAccountRowsFromEventsTx uses the same retained event source and exact
-// pricing bands as hourly recovery. The caller must verify core coverage.
+// pricing bands as hourly recovery. The retained projection arm is scoped by
+// account_key before entering the pricing CTE so degraded account-history reads
+// can use the projection's account index instead of scanning retained history.
+// The caller must verify core coverage.
 func (r *repository) LoadAccountRowsFromEventsTx(ctx context.Context, tx *sql.Tx, accountKeys []string) ([]AccountRow, error) {
 	keys := normalizeValues(accountKeys)
 	if len(keys) == 0 {
 		return []AccountRow{}, nil
 	}
-	source, err := retainedEventSourceTx(ctx, tx)
+	source, sourceArgs, err := retainedAccountEventSourceTx(ctx, tx, keys)
 	if err != nil {
 		return nil, err
 	}
 	grouped := map[accountKey]*AccountRow{}
-	if err := mergeAccountRowsFromSource(ctx, tx, 0, keys, grouped, source); err != nil {
+	if err := mergeAccountRowsFromSourceArgs(ctx, tx, 0, keys, grouped, source, sourceArgs); err != nil {
 		return nil, err
 	}
 	return sortedAccountRows(grouped), nil
@@ -155,7 +158,42 @@ func retainedPricingRebuildSourceTx(ctx context.Context, tx *sql.Tx) (string, in
 }
 
 func retainedEventSourceTx(ctx context.Context, tx *sql.Tx) (string, error) {
-	source := "usage_events"
+	coverageID, compatible, err := retainedProjectionCoverageTx(ctx, tx)
+	if err != nil {
+		return "", err
+	}
+	if !compatible || coverageID <= 0 {
+		return "usage_events", nil
+	}
+	return fmt.Sprintf(`(select p.event_id as id, p.%s from %s p where p.event_id <= %d
+		union all select e.id, e.%s from usage_events e where e.id > %d)`,
+		strings.Join(retainedPricingColumns, ", p."), usageprojection.EventTable, coverageID,
+		strings.Join(retainedPricingColumns, ", e."), coverageID,
+	), nil
+}
+
+func retainedAccountEventSourceTx(ctx context.Context, tx *sql.Tx, accountKeys []string) (string, []any, error) {
+	coverageID, compatible, err := retainedProjectionCoverageTx(ctx, tx)
+	if err != nil {
+		return "", nil, err
+	}
+	if !compatible || coverageID <= 0 {
+		return "usage_events", nil, nil
+	}
+	placeholders := strings.TrimRight(strings.Repeat("?,", len(accountKeys)), ",")
+	args := make([]any, 0, len(accountKeys))
+	for _, key := range accountKeys {
+		args = append(args, key)
+	}
+	return fmt.Sprintf(`(select p.event_id as id, p.%s from %s p
+		where p.account_key in (%s) and p.event_id <= %d
+		union all select e.id, e.%s from usage_events e where e.id > %d)`,
+		strings.Join(retainedPricingColumns, ", p."), usageprojection.EventTable, placeholders, coverageID,
+		strings.Join(retainedPricingColumns, ", e."), coverageID,
+	), args, nil
+}
+
+func retainedProjectionCoverageTx(ctx context.Context, tx *sql.Tx) (int64, bool, error) {
 	var schemaVersion int
 	var revision, status string
 	var coverageID int64
@@ -163,16 +201,14 @@ func retainedEventSourceTx(ctx context.Context, tx *sql.Tx) (string, error) {
 		from usage_monitoring_rollup_state where rollup_name = 'projection_v1'`).Scan(
 		&schemaVersion, &revision, &status, &coverageID,
 	)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return "", err
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return 0, false, nil
+		}
+		return 0, false, err
 	}
-	if err == nil && schemaVersion == 1 && coverageID > 0 &&
-		revision == usageidentity.MonitoringProjectionStructureRevision() && status != "clearing" {
-		source = fmt.Sprintf(`(select p.event_id as id, p.%s from %s p where p.event_id <= %d
-			union all select e.id, e.%s from usage_events e where e.id > %d)`,
-			strings.Join(retainedPricingColumns, ", p."), usageprojection.EventTable, coverageID,
-			strings.Join(retainedPricingColumns, ", e."), coverageID,
-		)
-	}
-	return source, nil
+	compatible := schemaVersion == 1 &&
+		revision == usageidentity.MonitoringProjectionStructureRevision() &&
+		status != "clearing"
+	return coverageID, compatible, nil
 }

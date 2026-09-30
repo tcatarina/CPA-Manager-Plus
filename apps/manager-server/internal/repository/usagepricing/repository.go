@@ -1156,6 +1156,18 @@ func mergeAccountRowsFromSource(
 	grouped map[accountKey]*AccountRow,
 	source string,
 ) error {
+	return mergeAccountRowsFromSourceArgs(ctx, tx, afterID, accountKeys, grouped, source, nil)
+}
+
+func mergeAccountRowsFromSourceArgs(
+	ctx context.Context,
+	tx *sql.Tx,
+	afterID int64,
+	accountKeys []string,
+	grouped map[accountKey]*AccountRow,
+	source string,
+	sourceArgs []any,
+) error {
 	placeholders := strings.TrimRight(strings.Repeat("?,", len(accountKeys)), ",")
 	query := bandedEventsFromSourceCTE("e.id > ?", source) + fmt.Sprintf(`
 	select
@@ -1195,7 +1207,8 @@ func mergeAccountRowsFromSource(
 		usage.LongContextInputTokenThreshold,
 		placeholders,
 	)
-	args := make([]any, 0, len(accountKeys)+1)
+	args := make([]any, 0, len(sourceArgs)+len(accountKeys)+1)
+	args = append(args, sourceArgs...)
 	args = append(args, afterID)
 	for _, key := range accountKeys {
 		args = append(args, key)
