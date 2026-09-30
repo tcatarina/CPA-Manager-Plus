@@ -133,7 +133,7 @@ func TestAnalyticsPricingRecoveryPreservesFiltersAndCollapsedBuckets(t *testing.
 	}
 }
 
-func TestPricingCatchUpPreservesArchivedHistoryDuringRebuild(t *testing.T) {
+func TestPricingCatchUpRebuildsArchivedHistoryFromRetainedProjection(t *testing.T) {
 	for _, test := range []struct {
 		name string
 		sql  string
@@ -149,19 +149,22 @@ func TestPricingCatchUpPreservesArchivedHistoryDuringRebuild(t *testing.T) {
 				t.Fatal(err)
 			}
 			before := pricingCoverageCounts(t, sqlDB)
-			stateBefore, err := db.UsagePricingState(ctx)
+			result, err := db.CatchUpUsagePricing(ctx, 100, time.Now().UnixMilli())
 			if err != nil {
-				t.Fatal(err)
+				t.Fatalf("rebuild from retained projection: %v", err)
 			}
-			if _, err := db.CatchUpUsagePricing(ctx, 100, time.Now().UnixMilli()); err == nil {
-				t.Fatal("rebuild from deleted raw history unexpectedly succeeded")
+			if !result.Rebuilt || result.Pending || result.CoverageEventID < result.TargetEventID {
+				t.Fatalf("unexpected retained rebuild result: %#v", result)
 			}
 			stateAfter, err := db.UsagePricingState(ctx)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if after := pricingCoverageCounts(t, sqlDB); after != before || !reflect.DeepEqual(stateAfter, stateBefore) {
-				t.Fatalf("rebuild changed retained history: before=%v after=%v states=%#v / %#v", before, after, stateBefore, stateAfter)
+			if stateAfter.Status != "ready" || stateAfter.CoverageEventID < stateAfter.TargetEventID {
+				t.Fatalf("retained rebuild state = %#v", stateAfter)
+			}
+			if after := pricingCoverageCounts(t, sqlDB); after != before {
+				t.Fatalf("retained rebuild changed historical coverage: before=%v after=%v", before, after)
 			}
 		})
 	}
