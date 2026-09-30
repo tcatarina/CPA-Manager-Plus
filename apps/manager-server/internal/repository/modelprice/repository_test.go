@@ -602,3 +602,77 @@ func TestModelPriceUpsertSyncedStructureChangeAllowedAfterRawDeletionWithRetaine
 		t.Fatalf("expected model-b to be persisted")
 	}
 }
+
+
+func TestModelPriceStructureChangePreservesRetainedVerifierSystemError(t *testing.T) {
+	ctx := context.Background()
+	db, repo := openTestDB(t)
+
+	if err := repo.ReplaceAll(ctx, map[string]model.ModelPrice{
+		"model-a": {Prompt: 1.0, Completion: 2.0},
+	}); err != nil {
+		t.Fatalf("initial ReplaceAll: %v", err)
+	}
+	markRawDeleted(t, db)
+	if _, err := db.Exec(`drop table usage_monitoring_rollup_state`); err != nil {
+		t.Fatalf("drop monitoring rollup state: %v", err)
+	}
+
+	err := repo.ReplaceAll(ctx, map[string]model.ModelPrice{
+		"model-a": {Prompt: 1.0, Completion: 2.0},
+		"model-b": {Prompt: 3.0, Completion: 4.0},
+	})
+	if err == nil {
+		t.Fatal("expected retained verifier system error")
+	}
+	if errors.Is(err, modelprice.ErrStructureChangeAfterRawDeletion) {
+		t.Fatalf("system error was misclassified as structure conflict: %v", err)
+	}
+
+	persisted, loadErr := repo.LoadAll(ctx)
+	if loadErr != nil {
+		t.Fatalf("LoadAll: %v", loadErr)
+	}
+	if len(persisted) != 1 {
+		t.Fatalf("expected mutation rollback, got %d models", len(persisted))
+	}
+	if _, ok := persisted["model-b"]; ok {
+		t.Fatal("model-b should not exist after verifier system error")
+	}
+}
+
+func TestModelPriceUpsertSyncedPreservesRetainedVerifierSystemError(t *testing.T) {
+	ctx := context.Background()
+	db, repo := openTestDB(t)
+
+	if err := repo.ReplaceAll(ctx, map[string]model.ModelPrice{
+		"model-a": {Prompt: 1.0, Completion: 2.0},
+	}); err != nil {
+		t.Fatalf("initial ReplaceAll: %v", err)
+	}
+	markRawDeleted(t, db)
+	if _, err := db.Exec(`drop table usage_monitoring_rollup_state`); err != nil {
+		t.Fatalf("drop monitoring rollup state: %v", err)
+	}
+
+	result, err := repo.UpsertSynced(ctx, map[string]model.ModelPrice{
+		"model-b": {Prompt: 3.0, Completion: 4.0, Source: "sync"},
+	})
+	if err == nil {
+		t.Fatalf("expected retained verifier system error, got result=%+v", result)
+	}
+	if errors.Is(err, modelprice.ErrStructureChangeAfterRawDeletion) {
+		t.Fatalf("system error was misclassified as structure conflict: %v", err)
+	}
+
+	persisted, loadErr := repo.LoadAll(ctx)
+	if loadErr != nil {
+		t.Fatalf("LoadAll: %v", loadErr)
+	}
+	if len(persisted) != 1 {
+		t.Fatalf("expected sync rollback, got %d models", len(persisted))
+	}
+	if _, ok := persisted["model-b"]; ok {
+		t.Fatal("model-b should not exist after verifier system error")
+	}
+}
