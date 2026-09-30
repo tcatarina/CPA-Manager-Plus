@@ -19,6 +19,8 @@ var retainedPricingColumns = []string{
 	"auth_file_snapshot", "auth_provider_snapshot", "auth_project_id_snapshot", "auth_account_id_snapshot",
 }
 
+var ErrRetainedPricingHistoryIncomplete = errors.New("retained pricing history is incomplete")
+
 // LoadHourlyRowsFromEventsTx bypasses a deficient pricing cache without writing
 // to it. A compatible retained projection supplies archived events; raw events
 // after its watermark supply the tail, with no overlapping IDs.
@@ -93,12 +95,15 @@ func retainedPricingRebuildSourceTx(ctx context.Context, tx *sql.Tx) (string, in
 		from usage_monitoring_rollup_state where rollup_name = 'projection_v1'`).Scan(
 		&schemaVersion, &revision, &status, &coverageID,
 	); err != nil {
-		return "", 0, fmt.Errorf("retained usage projection state is unavailable: %w", err)
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", 0, fmt.Errorf("%w: retained usage projection state is unavailable", ErrRetainedPricingHistoryIncomplete)
+		}
+		return "", 0, err
 	}
 	if schemaVersion != 1 ||
 		revision != usageidentity.MonitoringProjectionStructureRevision() ||
 		status == "clearing" {
-		return "", 0, fmt.Errorf("retained usage projection is incompatible or rebuilding")
+		return "", 0, fmt.Errorf("%w: retained usage projection is incompatible or rebuilding", ErrRetainedPricingHistoryIncomplete)
 	}
 
 	var incomplete bool
@@ -116,7 +121,7 @@ func retainedPricingRebuildSourceTx(ctx context.Context, tx *sql.Tx) (string, in
 		return "", 0, err
 	}
 	if incomplete {
-		return "", 0, fmt.Errorf("retained usage projection is missing a deleted pricing event")
+		return "", 0, fmt.Errorf("%w: retained usage projection is missing a deleted pricing event", ErrRetainedPricingHistoryIncomplete)
 	}
 
 	var latestID int64
