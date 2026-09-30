@@ -184,23 +184,21 @@ func (r *repository) CatchUp(ctx context.Context, limit int, nowMS int64) (Catch
 	if err != nil {
 		return CatchUpResult{}, err
 	}
+	rebuildMode := state.StructureRevision != revision ||
+		state.Status == "clearing" || state.Status == "rebuilding" || state.Status == "pending"
 	latestID, err := latestEventID(ctx, tx)
 	if err != nil {
 		return CatchUpResult{}, err
 	}
-	rebuilt := (state.Status == "pending" || state.Status == "rebuilding" || state.Status == "clearing") &&
-		state.CoverageEventID < state.TargetEventID
-	if state.StructureRevision != revision || state.Status == "clearing" || state.Status == "rebuilding" || state.Status == "pending" {
-		var hasDeletedRaw bool
-		if err := tx.QueryRowContext(ctx, `select exists (
-			select 1 from usage_archive_event_refs where raw_deleted_at_ms is not null
-		)`).Scan(&hasDeletedRaw); err != nil {
-			return CatchUpResult{}, err
-		}
-		if hasDeletedRaw {
-			return CatchUpResult{}, errors.New("cannot rebuild pricing rollups from incomplete raw usage history")
+	eventSource := "usage_events"
+	if rebuildMode {
+		eventSource, latestID, err = retainedPricingRebuildSourceTx(ctx, tx)
+		if err != nil {
+			return CatchUpResult{}, fmt.Errorf("cannot rebuild pricing rollups from retained usage history: %w", err)
 		}
 	}
+	rebuilt := (state.Status == "pending" || state.Status == "rebuilding" || state.Status == "clearing") &&
+		state.CoverageEventID < state.TargetEventID
 	if state.StructureRevision != revision {
 		if err := resetForRevision(ctx, tx, revision, latestID, nowMS); err != nil {
 			return CatchUpResult{}, err
@@ -252,7 +250,7 @@ func (r *repository) CatchUp(ctx context.Context, limit int, nowMS int64) (Catch
 			return CatchUpResult{}, err
 		}
 	}
-	ids, err := eventIDsThrough(ctx, tx, state.BackfillLastEventID, targetEventID, limit)
+	ids, err := eventIDsThrough(ctx, tx, eventSource, state.BackfillLastEventID, targetEventID, limit)
 	if err != nil {
 		return CatchUpResult{}, err
 	}
@@ -296,13 +294,13 @@ func (r *repository) CatchUp(ctx context.Context, limit int, nowMS int64) (Catch
 	}
 
 	lastEventID := ids[len(ids)-1]
-	if err := upsertHourlyBatch(ctx, tx, revision, state.BackfillLastEventID, lastEventID, nowMS); err != nil {
+	if err := upsertHourlyBatch(ctx, tx, eventSource, revision, state.BackfillLastEventID, lastEventID, nowMS); err != nil {
 		return CatchUpResult{}, err
 	}
-	if err := upsertAccountBatch(ctx, tx, revision, state.BackfillLastEventID, lastEventID, nowMS); err != nil {
+	if err := upsertAccountBatch(ctx, tx, eventSource, revision, state.BackfillLastEventID, lastEventID, nowMS); err != nil {
 		return CatchUpResult{}, err
 	}
-	minBucket, maxBucket, err := batchBucketRange(ctx, tx, state.BackfillLastEventID, lastEventID)
+	minBucket, maxBucket, err := batchBucketRange(ctx, tx, eventSource, state.BackfillLastEventID, lastEventID)
 	if err != nil {
 		return CatchUpResult{}, err
 	}
@@ -509,11 +507,14 @@ func latestEventID(ctx context.Context, tx *sql.Tx) (int64, error) {
 	return id, nil
 }
 
-func eventIDsThrough(ctx context.Context, tx *sql.Tx, lastEventID, targetEventID int64, limit int) ([]int64, error) {
+func eventIDsThrough(ctx context.Context, tx *sql.Tx, source string, lastEventID, targetEventID int64, limit int) ([]int64, error) {
 	if targetEventID <= lastEventID {
 		return []int64{}, nil
 	}
-	rows, err := tx.QueryContext(ctx, `select id from usage_events where id > ? and id <= ? order by id limit ?`, lastEventID, targetEventID, limit)
+	rows, err := tx.QueryContext(ctx, fmt.Sprintf(
+		`select id from %s where id > ? and id <= ? order by id limit ?`,
+		source,
+	), lastEventID, targetEventID, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -529,12 +530,12 @@ func eventIDsThrough(ctx context.Context, tx *sql.Tx, lastEventID, targetEventID
 	return ids, rows.Err()
 }
 
-func batchBucketRange(ctx context.Context, tx *sql.Tx, afterID, throughID int64) (sql.NullInt64, sql.NullInt64, error) {
+func batchBucketRange(ctx context.Context, tx *sql.Tx, source string, afterID, throughID int64) (sql.NullInt64, sql.NullInt64, error) {
 	var minBucket, maxBucket sql.NullInt64
 	err := tx.QueryRowContext(ctx, fmt.Sprintf(`select
 		min(timestamp_ms - (timestamp_ms %% %d)),
 		max(timestamp_ms - (timestamp_ms %% %d))
-		from usage_events where id > ? and id <= ?`, hourMS, hourMS), afterID, throughID).Scan(&minBucket, &maxBucket)
+		from %s where id > ? and id <= ?`, hourMS, hourMS, source), afterID, throughID).Scan(&minBucket, &maxBucket)
 	return minBucket, maxBucket, err
 }
 
@@ -588,8 +589,8 @@ func bandedEventsFromSourceCTE(whereClause, source string) string {
 		)`, requestedModelExpression, analyticsModelExpression, analyticsModelExpression, accountKeyExpression, source, whereClause, model.ModelPriceBaseContextThreshold)
 }
 
-func upsertHourlyBatch(ctx context.Context, tx *sql.Tx, revision string, afterID, throughID, nowMS int64) error {
-	query := bandedEventsCTE("e.id > ? and e.id <= ?") + fmt.Sprintf(`
+func upsertHourlyBatch(ctx context.Context, tx *sql.Tx, source, revision string, afterID, throughID, nowMS int64) error {
+	query := bandedEventsFromSourceCTE("e.id > ? and e.id <= ?", source) + fmt.Sprintf(`
 	insert into usage_pricing_hourly_rollups_v1 (
 		structure_revision, bucket_ms, model, billing_model, pricing_model,
 		service_tier, context_threshold_tokens, failed, calls,
@@ -659,8 +660,8 @@ func upsertHourlyBatch(ctx context.Context, tx *sql.Tx, revision string, afterID
 	return err
 }
 
-func upsertAccountBatch(ctx context.Context, tx *sql.Tx, revision string, afterID, throughID, nowMS int64) error {
-	query := bandedEventsCTE("e.id > ? and e.id <= ?") + fmt.Sprintf(`
+func upsertAccountBatch(ctx context.Context, tx *sql.Tx, source, revision string, afterID, throughID, nowMS int64) error {
+	query := bandedEventsFromSourceCTE("e.id > ? and e.id <= ?", source) + fmt.Sprintf(`
 	insert into usage_pricing_account_rollups_v1 (
 		structure_revision, account_key, account_snapshot, auth_label_snapshot,
 		auth_provider_snapshot, auth_index, source, source_hash, model,
