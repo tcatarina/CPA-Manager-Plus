@@ -140,15 +140,17 @@ func TestPricingCatchUpRebuildsArchivedHistoryFromRetainedProjection(t *testing.
 	}{
 		{"revision change", `update usage_pricing_rollup_state set structure_revision = 'obsolete'`},
 		{"resumed clearing", `update usage_pricing_rollup_state set status = 'clearing', coverage_event_id = 0, backfill_last_event_id = 0`},
-		{"resumed rebuilding", `update usage_pricing_rollup_state set status = 'rebuilding', coverage_event_id = 0, backfill_last_event_id = 0`},
+		{"resumed rebuilding", `delete from usage_pricing_hourly_rollups_v1;
+			delete from usage_pricing_account_rollups_v1;
+			update usage_pricing_rollup_state set status = 'rebuilding', coverage_event_id = 0, backfill_last_event_id = 0`},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			db, sqlDB, _, _ := pricingCoverageFixture(t)
 			ctx := context.Background()
+			before := pricingCoverageCounts(t, sqlDB)
 			if _, err := sqlDB.ExecContext(ctx, test.sql); err != nil {
 				t.Fatal(err)
 			}
-			before := pricingCoverageCounts(t, sqlDB)
 			result, err := db.CatchUpUsagePricing(ctx, 100, time.Now().UnixMilli())
 			if err != nil {
 				t.Fatalf("rebuild from retained projection: %v", err)
