@@ -252,7 +252,10 @@ func (r *repository) ReplaceAll(ctx context.Context, prices map[string]model.Mod
 	afterRevision := model.ModelPriceStructureRevision(normalizedPrices)
 	if beforeRevision != afterRevision {
 		if err := usagepricing.VerifyRetainedPricingRebuildSourceTx(ctx, tx); err != nil {
-			return fmt.Errorf("%w: %v", ErrStructureChangeAfterRawDeletion, err)
+			if errors.Is(err, usagepricing.ErrRetainedPricingHistoryIncomplete) {
+				return fmt.Errorf("%w: %v", ErrStructureChangeAfterRawDeletion, err)
+			}
+			return err
 		}
 	}
 
@@ -460,7 +463,10 @@ func (r *repository) UpsertSynced(ctx context.Context, prices map[string]model.M
 	afterRevision := model.ModelPriceStructureRevision(afterPrices)
 	if beforeRevision != afterRevision {
 		if err := usagepricing.VerifyRetainedPricingRebuildSourceTx(ctx, tx); err != nil {
-			return model.ModelPriceSyncResult{}, fmt.Errorf("%w: %v", ErrStructureChangeAfterRawDeletion, err)
+			if errors.Is(err, usagepricing.ErrRetainedPricingHistoryIncomplete) {
+				return model.ModelPriceSyncResult{}, fmt.Errorf("%w: %v", ErrStructureChangeAfterRawDeletion, err)
+			}
+			return model.ModelPriceSyncResult{}, err
 		}
 	}
 	sort.Strings(result.Preserved)
