@@ -167,40 +167,48 @@ export function GlmResetCards({
       )}
       {!list && !error && <p role="status">{t('common.loading')}</p>}
       {list && cards.length === 0 && <p>{t('glm_reset.empty')}</p>}
-      {cards.map((card) => {
-        const uncertain = pending.some(
-          (item) => item.id === card.id && item.resetType === card.resetType
-        );
-        return (
-          <div key={`${card.resetType}:${card.id}`} className={styles.drawerSection}>
-            <strong>
-              {t(card.resetType === 'FIVE_HOUR' ? 'glm_quota.five_hour' : 'glm_quota.weekly')}
-            </strong>
-            {card.title && <span>{card.title}</span>}
-            <span>
-              {card.expiresAtMs !== null
-                ? t('glm_reset.expires', {
-                    time: new Date(card.expiresAtMs).toLocaleString(i18n.language),
-                  })
-                : t('glm_reset.no_expiry')}
-            </span>
-            <Button
-              size="sm"
-              variant="danger"
-              disabled={
-                disabled ||
-                busy ||
-                (!uncertain && pending.length > 0) ||
-                (!uncertain && card.expiresAtMs !== null && card.expiresAtMs <= Date.now())
-              }
-              loading={busy}
-              onClick={() => void redeem(card)}
-            >
-              {t(uncertain ? 'glm_reset.retry' : 'glm_reset.use')}
-            </Button>
-          </div>
-        );
-      })}
+      <div className={styles.quotaSection}>
+        {cards.map((card) => {
+          const uncertain = pending.some(
+            (item) => item.id === card.id && item.resetType === card.resetType
+          );
+          return (
+            <div key={`${card.resetType}:${card.id}`} className={styles.quotaResetCard}>
+              <div className={styles.quotaResetHeader}>
+                <div className={styles.quotaResetTitle}>
+                  <h3>
+                    {t(card.resetType === 'FIVE_HOUR' ? 'glm_quota.five_hour' : 'glm_quota.weekly')}
+                  </h3>
+                  {card.title && <span>{card.title}</span>}
+                  <span>
+                    {card.expiresAtMs !== null
+                      ? t('glm_reset.expires', {
+                          time: new Date(card.expiresAtMs).toLocaleString(i18n.language),
+                        })
+                      : t('glm_reset.no_expiry')}
+                  </span>
+                </div>
+                <div className={styles.quotaResetHeaderActions}>
+                  <Button
+                    size="sm"
+                    variant="danger"
+                    disabled={
+                      disabled ||
+                      busy ||
+                      (!uncertain && pending.length > 0) ||
+                      (!uncertain && card.expiresAtMs !== null && card.expiresAtMs <= Date.now())
+                    }
+                    loading={busy}
+                    onClick={() => void redeem(card)}
+                  >
+                    {t(uncertain ? 'glm_reset.retry' : 'glm_reset.use')}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
       {list?.lastFiveHourResetAtMs && (
         <p>
           {t('glm_reset.last_five_hour', {
