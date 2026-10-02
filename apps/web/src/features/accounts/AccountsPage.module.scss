@@ -2562,6 +2562,8 @@
 }
 
 .drawerTabPanel {
+  display: grid;
+  gap: 12px;
   min-width: 0;
   padding-bottom: 10px;
 }
