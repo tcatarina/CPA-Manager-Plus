@@ -1,0 +1,224 @@
+{
+  "v2.2.2": {
+    "info": {
+      "schema_version": 1,
+      "release": {
+        "version": "v2.2.2",
+        "stage": "stable",
+        "source_commit": "8828d4c4242a198ab59e961c41af74237dc1fb2c"
+      },
+      "content": {
+        "summary": {
+          "zh": "修正凭证详情页签内的区块间距，GLM 重置卡不再与上方额度卡片紧贴。",
+          "en": "Fix section spacing inside account detail tabs so the GLM reset cards no longer sit flush against the quota windows above."
+        },
+        "notes": {
+          "zh": "https://github.com/tcatarina/CPA-Manager-Plus/blob/v2.2.2/docs/release-notes/v2.2.2-zh.md",
+          "en": "https://github.com/tcatarina/CPA-Manager-Plus/blob/v2.2.2/docs/release-notes/v2.2.2-en.md"
+        }
+      },
+      "update": {
+        "breaking": false,
+        "migration_required": false,
+        "minimum_direct_upgrade_version": null,
+        "upgrade_guide_url": "https://github.com/tcatarina/CPA-Manager-Plus/releases/tag/v2.2.2"
+      },
+      "distribution": {
+        "docker": {
+          "image": "tcatarina/cpa-manager-plus",
+          "version_tag": "v2.2.2"
+        },
+        "native": {
+          "assets": [
+            "cpa-manager-plus_v2.2.2_darwin_amd64.tar.gz",
+            "cpa-manager-plus_v2.2.2_darwin_arm64.tar.gz",
+            "cpa-manager-plus_v2.2.2_linux_amd64.tar.gz",
+            "cpa-manager-plus_v2.2.2_linux_arm64.tar.gz"
+          ]
+        }
+      },
+      "compatibility": {
+        "minimum_cpa_version": "v7.3.4"
+      }
+    },
+    "digest": "sha256:f6fbf57dee6ad901f6b31facd4106282ceb0f52829ca2ed91b968fbe20d25965"
+  },
+  "v2.2.1": {
+    "info": {
+      "schema_version": 1,
+      "release": {
+        "version": "v2.2.1",
+        "stage": "stable",
+        "source_commit": "9e30eb45e752e5a39a02b3f9da8ffd91f61249c2"
+      },
+      "content": {
+        "summary": {
+          "zh": "修正 GLM 重置卡排版：卡片文字不再相互紧贴，兑换按钮改为右对齐。",
+          "en": "Fix GLM reset card layout so card text is no longer glued together and the redeem button is right-aligned."
+        },
+        "notes": {
+          "zh": "https://github.com/tcatarina/CPA-Manager-Plus/blob/v2.2.1/docs/release-notes/v2.2.1-zh.md",
+          "en": "https://github.com/tcatarina/CPA-Manager-Plus/blob/v2.2.1/docs/release-notes/v2.2.1-en.md"
+        }
+      },
+      "update": {
+        "breaking": false,
+        "migration_required": false,
+        "minimum_direct_upgrade_version": null,
+        "upgrade_guide_url": "https://github.com/tcatarina/CPA-Manager-Plus/releases/tag/v2.2.1"
+      },
+      "distribution": {
+        "docker": {
+          "image": "tcatarina/cpa-manager-plus",
+          "version_tag": "v2.2.1"
+        },
+        "native": {
+          "assets": [
+            "cpa-manager-plus_v2.2.1_darwin_amd64.tar.gz",
+            "cpa-manager-plus_v2.2.1_darwin_arm64.tar.gz",
+            "cpa-manager-plus_v2.2.1_linux_amd64.tar.gz",
+            "cpa-manager-plus_v2.2.1_linux_arm64.tar.gz"
+          ]
+        }
+      },
+      "compatibility": {
+        "minimum_cpa_version": "v7.3.4"
+      }
+    },
+    "digest": "sha256:a5ca9d1c4f55dec1a037f85e01868e9ad1aeffea55ac75688c24e26c1a674ee2"
+  },
+  "v2.2.0": {
+    "info": {
+      "schema_version": 1,
+      "release": {
+        "version": "v2.2.0",
+        "stage": "stable",
+        "source_commit": "a275e7abd0fc8b9b972226901b0a81090a001f6e"
+      },
+      "content": {
+        "summary": {
+          "zh": "同步上游 v1.14.2 修复：支持 CPA v8 客户端 API Key 布局，用量清理后重建模型定价，单账号定价不可恢复时降级显示账号历史。",
+          "en": "Sync upstream v1.14.2 fixes: CPA v8 client API key layout, model pricing rebuild after usage cleanup, and account-history degradation when one account's pricing is unrecoverable."
+        },
+        "notes": {
+          "zh": "https://github.com/tcatarina/CPA-Manager-Plus/blob/v2.2.0/docs/release-notes/v2.2.0-zh.md",
+          "en": "https://github.com/tcatarina/CPA-Manager-Plus/blob/v2.2.0/docs/release-notes/v2.2.0-en.md"
+        }
+      },
+      "update": {
+        "breaking": false,
+        "migration_required": false,
+        "minimum_direct_upgrade_version": null,
+        "upgrade_guide_url": "https://github.com/tcatarina/CPA-Manager-Plus/releases/tag/v2.2.0"
+      },
+      "distribution": {
+        "docker": {
+          "image": "tcatarina/cpa-manager-plus",
+          "version_tag": "v2.2.0"
+        },
+        "native": {
+          "assets": [
+            "cpa-manager-plus_v2.2.0_darwin_amd64.tar.gz",
+            "cpa-manager-plus_v2.2.0_darwin_arm64.tar.gz",
+            "cpa-manager-plus_v2.2.0_linux_amd64.tar.gz",
+            "cpa-manager-plus_v2.2.0_linux_arm64.tar.gz"
+          ]
+        }
+      },
+      "compatibility": {
+        "minimum_cpa_version": "v7.3.4"
+      }
+    },
+    "digest": "sha256:11c5c7e9c40d15d84e54d4d4c20d0f9a6a788e17a56862664fc2be24b1ae5321"
+  },
+  "v2.1.0": {
+    "info": {
+      "schema_version": 1,
+      "release": {
+        "version": "v2.1.0",
+        "stage": "stable",
+        "source_commit": "037dd3f34d6a0896665623451c76b29ec5205401"
+      },
+      "content": {
+        "summary": {
+          "zh": "GLM 共用五页凭证详情界面，支持额度、配置、模型、诊断和重置卡；修正分支版本链接及重复额度记录。",
+          "en": "Add shared five-tab GLM credential details and reset cards; fix fork release links and duplicate quota snapshots."
+        },
+        "notes": {
+          "zh": "https://github.com/tcatarina/CPA-Manager-Plus/blob/v2.1.0/docs/release-notes/v2.1.0-zh.md",
+          "en": "https://github.com/tcatarina/CPA-Manager-Plus/blob/v2.1.0/docs/release-notes/v2.1.0-en.md"
+        }
+      },
+      "update": {
+        "breaking": false,
+        "migration_required": false,
+        "minimum_direct_upgrade_version": null,
+        "upgrade_guide_url": "https://github.com/tcatarina/CPA-Manager-Plus/releases/tag/v2.1.0"
+      },
+      "distribution": {
+        "docker": {
+          "image": "tcatarina/cpa-manager-plus",
+          "version_tag": "v2.1.0"
+        },
+        "native": {
+          "assets": [
+            "cpa-manager-plus_v2.1.0_darwin_amd64.tar.gz",
+            "cpa-manager-plus_v2.1.0_darwin_arm64.tar.gz",
+            "cpa-manager-plus_v2.1.0_linux_amd64.tar.gz",
+            "cpa-manager-plus_v2.1.0_linux_arm64.tar.gz"
+          ]
+        }
+      },
+      "compatibility": {
+        "minimum_cpa_version": null
+      }
+    },
+    "digest": "sha256:4804736b379ed221c669284a776aca55231f2f244cc8a7590e19a3ae8234b498"
+  },
+  "v2.0.0": {
+    "info": {
+      "schema_version": 1,
+      "release": {
+        "version": "v2.0.0",
+        "stage": "stable",
+        "source_commit": "e686167fa3c65228b228bbb79ed4ec3c3ab27634"
+      },
+      "content": {
+        "summary": {
+          "zh": "发布版本。",
+          "en": "Release build."
+        },
+        "notes": {
+          "zh": "https://github.com/tcatarina/CPA-Manager-Plus/blob/v2.0.0/docs/release-notes/v2.0.0-zh.md",
+          "en": "https://github.com/tcatarina/CPA-Manager-Plus/blob/v2.0.0/docs/release-notes/v2.0.0-en.md"
+        }
+      },
+      "update": {
+        "breaking": false,
+        "migration_required": false,
+        "minimum_direct_upgrade_version": null,
+        "upgrade_guide_url": "https://github.com/tcatarina/CPA-Manager-Plus/releases/tag/v2.0.0"
+      },
+      "distribution": {
+        "docker": {
+          "image": "tcatarina/cpa-manager-plus",
+          "version_tag": "v2.0.0"
+        },
+        "native": {
+          "assets": [
+            "cpa-manager-plus_v2.0.0_darwin_amd64.tar.gz",
+            "cpa-manager-plus_v2.0.0_darwin_arm64.tar.gz",
+            "cpa-manager-plus_v2.0.0_linux_amd64.tar.gz",
+            "cpa-manager-plus_v2.0.0_linux_arm64.tar.gz",
+            "cpa-manager-plus_v2.0.0_windows_amd64.zip",
+            "cpa-manager-plus_v2.0.0_windows_arm64.zip"
+          ]
+        }
+      },
+      "compatibility": {
+        "minimum_cpa_version": null
+      }
+    },
+    "digest": "sha256:d37c65d72263897ed37c2b089e310b1229807842df677b1548b2a3734a8dcb9c"
+  }
+}
