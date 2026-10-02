@@ -1,9 +1,12 @@
 import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { generateReleaseInfo } from '../bin/release/generate-release-info.mjs';
-import { expectedReleaseAssetNames } from '../bin/release/verify-published-release.mjs';
 import { publishUpdateIndex, verifyCandidate } from '../bin/release/publish-update-index.mjs';
-import { repository, resolveChannels } from '../bin/release/update-contract.mjs';
+import {
+  legacyNativeAssets,
+  repository,
+  resolveChannels,
+} from '../bin/release/update-contract.mjs';
 
 function scenario({
   tags = ['v2.0.0'],
@@ -17,6 +20,8 @@ function scenario({
   registryMismatch = false,
   latestMismatch = false,
   latestTransportFailures = 0,
+  immutable = true,
+  legacyTags = [],
 } = {}) {
   const sha = 'a'.repeat(40),
     calls = [];
@@ -37,6 +42,7 @@ function scenario({
         }) +
         '\n-->'
     );
+    if (legacyTags.includes(tag)) info.distribution.native.assets = legacyNativeAssets(tag);
     const data = JSON.stringify(info);
     const digest = 'sha256:' + createHash('sha256').update(data).digest('hex');
     const imageDigest = 'sha256:' + createHash('sha256').update(tag).digest('hex');
@@ -44,10 +50,15 @@ function scenario({
       id: 123 + index,
       tag_name: tag,
       draft: false,
-      immutable: true,
+      immutable,
       prerelease: info.release.stage !== 'stable',
       published_at: '2026-09-08T00:00:00Z',
-      assets: expectedReleaseAssetNames(tag).map((name) => ({
+      assets: [
+        'checksums.txt',
+        'management.html',
+        'release-info.json',
+        ...info.distribution.native.assets,
+      ].map((name) => ({
         name,
         state: 'uploaded',
         size: name === 'release-info.json' ? Buffer.byteLength(data) : 10,
@@ -175,6 +186,16 @@ describe('update index publication', () => {
         .every((c) => c.docker.at(-1).includes('@sha256:'))
     ).toBe(true);
   });
+  it('publishes mutable releases alongside historical Windows assets', async () => {
+    const s = scenario({
+      tags: ['v2.0.0', 'v2.2.2'],
+      immutable: false,
+      legacyTags: ['v2.0.0'],
+    });
+    const index = await s.run();
+    expect(index.channels.stable.version).toBe('v2.2.2');
+    expect(s.calls.at(-1).body).toEqual({ ref: 'refs/heads/update-channel', sha: 'commit' });
+  });
   it('validates a distinct RC target before any alias or index mutation', async () => {
     const s = scenario({
       tags: ['v1.13.0', 'v2.0.0-rc.2', 'v2.1.0-beta.1'],
@@ -281,7 +302,7 @@ describe('update index publication', () => {
     );
   });
 
-  it('accepts a release with immutability disabled and rejects an explicit false', () => {
+  it('accepts mutable releases without weakening identity or asset validation', () => {
     const tag = 'v2.0.0';
     const sha = 'a'.repeat(40);
     const info = generateReleaseInfo(
@@ -306,7 +327,12 @@ describe('update index publication', () => {
       draft: false,
       prerelease: false,
       published_at: '2026-09-08T00:00:00Z',
-      assets: expectedReleaseAssetNames(tag).map((name) => ({
+      assets: [
+        'checksums.txt',
+        'management.html',
+        'release-info.json',
+        ...info.distribution.native.assets,
+      ].map((name) => ({
         name,
         state: 'uploaded',
         size: name === 'release-info.json' ? Buffer.byteLength(data) : 10,
@@ -323,8 +349,22 @@ describe('update index publication', () => {
 
     expect(() => verifyCandidate({ ...release, immutable: true }, info, sha)).not.toThrow();
 
-    expect(() => verifyCandidate({ ...release, immutable: false }, info, sha)).toThrow(
+    expect(() => verifyCandidate({ ...release, immutable: false }, info, sha)).not.toThrow();
+    expect(() => verifyCandidate({ ...release, draft: true }, info, sha)).toThrow(
       'Unverified release candidate'
     );
+    expect(() => verifyCandidate(release, info, 'b'.repeat(40))).toThrow(
+      'Unverified release candidate'
+    );
+    expect(() =>
+      verifyCandidate({ ...release, assets: release.assets.slice(1) }, info, sha)
+    ).toThrow('Incomplete release asset set');
+    expect(() =>
+      verifyCandidate(
+        { ...release, assets: release.assets.map((asset) => ({ ...asset, digest: 'bad' })) },
+        info,
+        sha
+      )
+    ).toThrow('Unverified release assets');
   });
 });

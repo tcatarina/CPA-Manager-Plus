@@ -1,7 +1,6 @@
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { expectedReleaseAssetNames } from './verify-published-release.mjs';
 import {
   validateInfo,
   resolveChannels,
@@ -16,14 +15,19 @@ export function verifyCandidate(release, info, sha) {
   if (
     release.tag_name !== tag ||
     release.draft ||
-    release.immutable === false ||
     !release.published_at ||
     release.prerelease !== (info.release.stage !== 'stable') ||
     sha !== info.release.source_commit
   )
     throw new Error('Unverified release candidate');
   const names = release.assets.map((a) => a.name).sort();
-  if (JSON.stringify(names) !== JSON.stringify(expectedReleaseAssetNames(tag)))
+  const expectedNames = [
+    'checksums.txt',
+    'management.html',
+    'release-info.json',
+    ...info.distribution.native.assets,
+  ].sort();
+  if (JSON.stringify(names) !== JSON.stringify(expectedNames))
     throw new Error('Incomplete release asset set');
   if (
     release.assets.some(
