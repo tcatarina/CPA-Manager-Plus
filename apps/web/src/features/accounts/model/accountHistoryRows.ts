@@ -42,7 +42,8 @@ const hasRequiredFileProvider = (target: MonitoringAccountHistoryTarget): boolea
   const account = target.account_snapshot?.trim() ?? '';
   const label = target.auth_label_snapshot?.trim() ?? '';
   const source = target.source?.trim() ?? '';
-  const effectiveFile = authFile || (source && source !== account && source !== label ? source : '');
+  const effectiveFile =
+    authFile || (source && source !== account && source !== label ? source : '');
   return !effectiveFile || Boolean(target.auth_provider_snapshot?.trim());
 };
 
@@ -51,12 +52,18 @@ const normalizeProvider = (value: string): string => value.trim().toLowerCase().
 export const buildAccountHistoryTargetEntries = (rows: AccountRow[]): AccountHistoryTargetEntry[] =>
   rows
     .map((row) => {
+      if (row.raw.credential_source === 'provider-config')
+        return {
+          rowKey: row.selectionKey,
+          target: { row_key: row.selectionKey, auth_index: row.authIndex || undefined },
+        };
       const identity = resolveCredentialIdentity(row.raw);
       const accountSnapshot = identity.accountSnapshot;
       const authLabelSnapshot = identity.authLabelSnapshot;
       const authFileSnapshot = identity.physicalName || readString(row.fileName);
       const rowProvider = readString(row.provider);
-      const authProviderSnapshot = identity.provider || (rowProvider === 'unknown' ? '' : rowProvider);
+      const authProviderSnapshot =
+        identity.provider || (rowProvider === 'unknown' ? '' : rowProvider);
       const isCodex = normalizeProvider(authProviderSnapshot) === 'codex';
       const authAccountIdSnapshot = isCodex ? identity.accountId : '';
       const authProjectIdSnapshot = isCodex ? '' : readString(row.projectId);

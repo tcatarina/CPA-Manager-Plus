@@ -40,6 +40,62 @@ beforeEach(() => {
   mocks.delete.mockReset();
 });
 
+describe('configured GLM credential updates', () => {
+  it('preserves other providers, sibling keys and unknown settings after a reorder', async () => {
+    const first = {
+      name: 'other',
+      'base-url': 'https://other.example',
+      'api-key-entries': [{ 'api-key': 'other-key' }],
+    };
+    const glm = {
+      name: 'glm',
+      'base-url': 'https://api.z.ai',
+      'request-retry': 4,
+      custom: { keep: true },
+      'api-key-entries': [
+        { 'api-key': 'a', weight: 2, custom: 'keep' },
+        { 'api-key': 'b', weight: 3 },
+      ],
+      models: [{ name: 'glm-5', thinking: { levels: ['high'] } }],
+    };
+    mocks.get.mockResolvedValue({ 'openai-compatibility': [first, glm] });
+    await providersApi.patchOpenAICredential(
+      { name: 'glm', baseUrl: 'https://api.z.ai', apiKeyEntries: [{ apiKey: 'a' }] },
+      { apiKey: 'a', weight: 2 },
+      { prefix: 'team' },
+      { weight: 0 }
+    );
+    const saved = mocks.put.mock.calls[0][1];
+    expect(saved[0]).toEqual(first);
+    expect(saved[1]).toMatchObject({
+      custom: { keep: true },
+      'request-retry': 4,
+      prefix: 'team',
+      'api-key-entries': [
+        { 'api-key': 'a', weight: 0, custom: 'keep' },
+        { 'api-key': 'b', weight: 3 },
+      ],
+      models: glm.models,
+    });
+  });
+  it('refuses an ambiguous or removed key without writing', async () => {
+    const provider = { name: 'glm', baseUrl: 'https://api.z.ai', apiKeyEntries: [{ apiKey: 'a' }] };
+    mocks.get.mockResolvedValue({
+      'openai-compatibility': [
+        {
+          name: 'glm',
+          'base-url': provider.baseUrl,
+          'api-key-entries': [{ 'api-key': 'a' }, { 'api-key': 'a' }],
+        },
+      ],
+    });
+    await expect(
+      providersApi.patchOpenAICredential(provider, provider.apiKeyEntries[0], {}, { weight: 2 })
+    ).rejects.toThrow('Credential configuration changed');
+    expect(mocks.put).not.toHaveBeenCalled();
+  });
+});
+
 describe('providersApi auth-index preservation', () => {
   it('normalizes credential weights without collapsing explicit zero into omission', async () => {
     mocks.get.mockResolvedValueOnce({
@@ -2119,4 +2175,3 @@ describe('providersApi meta provider management', () => {
     );
   });
 });
-

@@ -1,7 +1,7 @@
 export type DashboardVersionReleaseTarget = 'manager' | 'core';
 
 const RELEASE_REPOSITORIES: Record<DashboardVersionReleaseTarget, string> = {
-  manager: 'seakee/CPA-Manager-Plus',
+  manager: 'tcatarina/CPA-Manager-Plus',
   core: 'router-for-me/CLIProxyAPI',
 };
 

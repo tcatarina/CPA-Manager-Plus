@@ -21,7 +21,7 @@ import {
   type OAuthConfigLoadState,
 } from '@/features/authFiles/constants';
 import type { UseAuthFileConfigurationEditorResult } from '@/features/authFiles/hooks/useAuthFileConfigurationEditor';
-import type { OAuthModelAliasEntry } from '@/types';
+import type { OAuthModelAliasEntry, ModelAlias } from '@/types';
 import styles from '@/features/accounts/AccountsPage.module.scss';
 
 type AccountModelFilter = 'all' | 'available' | 'disabled';
@@ -46,6 +46,8 @@ interface AccountModelsTabProps {
   onManageGlobalRules: () => void;
   onOpenAdvancedRules: () => void;
   onCopyText: (value: string) => void;
+  configuredModels?: ModelAlias[];
+  onConfiguredModelsChange?: (models: ModelAlias[]) => void;
 }
 
 const getScopeTranslationKey = (scope: AccountModelRuleScope) => {
@@ -107,11 +109,14 @@ export function AccountModelsTab({
   onManageGlobalRules,
   onOpenAdvancedRules,
   onCopyText,
+  configuredModels,
+  onConfiguredModelsChange,
 }: AccountModelsTabProps) {
   const { t } = useTranslation();
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<AccountModelFilter>('all');
   const { state, draft, dirty, canSave, sharedSourceReadOnly, sourceMemberCount } = editor;
+  const providerConfig = configuredModels !== undefined;
   const providerKey = normalizeProviderKey(fileType || row.provider);
   const globalRulesKnown = globalExcludedState === 'ready';
   const aliasEntries = useMemo(() => {
@@ -136,8 +141,13 @@ export function AccountModelsTab({
     return result;
   }, [aliasEntries]);
   const credentialRules = useMemo(
-    () => parseExcludedModelsText(draft?.excludedModelsText ?? ''),
-    [draft?.excludedModelsText]
+    () =>
+      providerConfig
+        ? modelDefinitions
+            .filter((model) => !configuredModels.some((entry) => entry.name === model.id))
+            .map((model) => model.id)
+        : parseExcludedModelsText(draft?.excludedModelsText ?? ''),
+    [draft?.excludedModelsText, providerConfig, configuredModels, modelDefinitions]
   );
   const credentialPrefix = state?.originalDraft?.prefix ?? '';
   const projection = useMemo(
@@ -184,9 +194,7 @@ export function AccountModelsTab({
           ? model.ruleModelId.trim().toLowerCase()
           : model.id.trim().toLowerCase();
       return (
-        aliasesByModelId.get(lookupKey) ??
-        aliasesByModelId.get(model.id.trim().toLowerCase()) ??
-        []
+        aliasesByModelId.get(lookupKey) ?? aliasesByModelId.get(model.id.trim().toLowerCase()) ?? []
       );
     },
     [aliasesByModelId]
@@ -229,6 +237,20 @@ export function AccountModelsTab({
 
   const updateExactRule = (model: AccountModelRuleRow, excluded: boolean) => {
     if (editingDisabled || !model.ruleModelIdResolved) return;
+    if (providerConfig && onConfiguredModelsChange) {
+      if (excluded && configuredModels.length === 1) return;
+      if (
+        excluded &&
+        !window.confirm(t('glm_quota.remove_model_confirm', { model: model.ruleModelId }))
+      )
+        return;
+      onConfiguredModelsChange(
+        excluded
+          ? configuredModels.filter((entry) => entry.name !== model.ruleModelId)
+          : [...configuredModels, { name: model.ruleModelId }]
+      );
+      return;
+    }
     const next = setAccountModelExactRule(
       credentialRules,
       model.ruleModelId,
@@ -239,6 +261,39 @@ export function AccountModelsTab({
   };
 
   const renderRowAction = (model: AccountModelRuleRow) => {
+    if (providerConfig) {
+      const configured = configuredModels.some((entry) => entry.name === model.ruleModelId);
+      return (
+        <div>
+          {configured && (
+            <Input
+              aria-label={t('glm_quota.alias')}
+              value={
+                configuredModels.find((entry) => entry.name === model.ruleModelId)?.alias ?? ''
+              }
+              disabled={editingDisabled}
+              onChange={(event) =>
+                onConfiguredModelsChange?.(
+                  configuredModels.map((entry) =>
+                    entry.name === model.ruleModelId
+                      ? { ...entry, alias: event.target.value }
+                      : entry
+                  )
+                )
+              }
+            />
+          )}
+          <Button
+            size="xs"
+            variant="secondary"
+            disabled={editingDisabled || (configured && configuredModels.length === 1)}
+            onClick={() => updateExactRule(model, configured)}
+          >
+            {t(configured ? 'glm_quota.remove_model' : 'glm_quota.add_model')}
+          </Button>
+        </div>
+      );
+    }
     if (sharedSourceReadOnly && model.credentialPatterns.length > 0) {
       return (
         <Button variant="secondary" size="xs" disabled>
@@ -300,9 +355,7 @@ export function AccountModelsTab({
         disabled={editingDisabled || !model.ruleModelIdResolved}
         onClick={() => updateExactRule(model, true)}
         title={
-          !model.ruleModelIdResolved
-            ? t('accounts.model_rule_mapping_unavailable')
-            : undefined
+          !model.ruleModelIdResolved ? t('accounts.model_rule_mapping_unavailable') : undefined
         }
       >
         {t('accounts.model_disable_for_credential')}
@@ -336,9 +389,11 @@ export function AccountModelsTab({
           </strong>
         </div>
         <div className={styles.headerActions}>
-          <Button variant="secondary" size="sm" onClick={onManageGlobalRules}>
-            {t('accounts.model_manage_global_rules')}
-          </Button>
+          {!providerConfig && (
+            <Button variant="secondary" size="sm" onClick={onManageGlobalRules}>
+              {t('accounts.model_manage_global_rules')}
+            </Button>
+          )}
           <Button
             variant="secondary"
             size="sm"
@@ -352,6 +407,9 @@ export function AccountModelsTab({
         </div>
       </div>
 
+      {providerConfig && (
+        <p className={styles.configurationReadOnlyNotice}>{t('glm_quota.models_scope')}</p>
+      )}
       {row.runtimeOnly ? (
         <div className={styles.configurationReadOnlyNotice} role="note">
           {t('accounts.config_runtime_only_desc')}

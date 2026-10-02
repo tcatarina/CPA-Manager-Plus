@@ -1215,23 +1215,31 @@ export const parseGlmQuotaPayload = (
 ): { plan: string; rows: GlmQuotaRow[] } | null => {
   const payload = raw as GlmQuotaDataPayload | null | undefined;
   if (!isRecord(payload) || payload.success !== true) return null;
-  const data = payload.data as GlmQuotaDataPayload['data'] | undefined;
-  const limits = data?.limits;
+  const data = payload.data;
+  if (!isRecord(data)) return null;
+  const limits = data.limits;
   if (!Array.isArray(limits) || limits.length === 0) return null;
 
   const rows: GlmQuotaRow[] = [];
   limits.forEach((limit, index) => {
     if (!isRecord(limit)) return;
-    const usage = normalizeNumberValue(limit.usage) ?? 0;
-    const used = normalizeNumberValue(limit.currentValue) ?? 0;
-    const remaining = normalizeNumberValue(limit.remaining) ?? 0;
+    const usage = normalizeNumberValue(limit.usage);
+    const used = normalizeNumberValue(limit.currentValue);
+    const remaining = normalizeNumberValue(limit.remaining);
+    if (
+      usage === null ||
+      used === null ||
+      remaining === null ||
+      usage < 0 ||
+      used < 0 ||
+      remaining < 0
+    )
+      return;
     const unit = normalizeNumberValue(limit.unit) ?? 0;
     const window = GLM_QUOTA_WINDOW_KEYS[unit];
+    const reset = normalizeNumberValue(limit.nextResetTime);
     const resetAtMs =
-      normalizeNumberValue(limit.nextResetTime) != null &&
-      (limit.nextResetTime as number) > 0
-        ? (limit.nextResetTime as number)
-        : null;
+      reset !== null && reset > 0 && !Number.isNaN(new Date(reset).getTime()) ? reset : null;
     rows.push({
       id: window?.id ?? `unit-${unit || index}`,
       labelKey: window?.labelKey,

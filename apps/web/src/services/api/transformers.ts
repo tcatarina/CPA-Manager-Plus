@@ -370,6 +370,8 @@ const normalizeOpenAIProvider = (provider: unknown): OpenAIProviderConfig | null
   if (models.length) result.models = models;
   if (priority !== undefined) result.priority = Number(priority);
   if (testModel) result.testModel = String(testModel);
+  const requestRetry = provider['request-retry'] ?? provider.requestRetry;
+  if (typeof requestRetry === 'number') result.requestRetry = requestRetry;
   const authIndex = normalizeAuthIndex(
     provider['auth-index'] ?? provider.authIndex ?? provider['auth_index']
   );

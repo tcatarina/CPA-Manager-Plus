@@ -48,6 +48,19 @@ const makeRow = (overrides: Partial<AccountRow>): AccountRow =>
   }) as AccountRow;
 
 describe('accountHistoryRows', () => {
+  it('uses only the runtime key for configuration-backed credentials', () => {
+    const row = makeRow({
+      provider: 'glm',
+      fileName: 'config.yaml',
+      authIndex: 'glm-key',
+      raw: { name: 'config.yaml', credential_source: 'provider-config' },
+    });
+    expect(buildAccountHistoryTargetEntries([row])[0].target).toEqual({
+      row_key: row.selectionKey,
+      auth_index: 'glm-key',
+    });
+    expect(buildAccountHistoryTargetEntries([{ ...row, authIndex: '' }])).toEqual([]);
+  });
   it('splits account-history targets at the server request limit', () => {
     const entries = Array.from({ length: ACCOUNT_HISTORY_TARGET_BATCH_SIZE + 1 }, (_, index) => ({
       rowKey: `row-${index}`,

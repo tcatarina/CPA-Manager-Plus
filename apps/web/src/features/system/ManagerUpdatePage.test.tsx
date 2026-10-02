@@ -105,7 +105,7 @@ describe('ManagerUpdatePage', () => {
       (node) => node.type === 'a' && text(node).includes('manager_updates.native_download')
     );
     expect(download.props.href).toBe(
-      'https://github.com/seakee/CPA-Manager-Plus/releases/tag/v1.12.11'
+      'https://github.com/tcatarina/CPA-Manager-Plus/releases/tag/v1.12.11'
     );
     expect(renderer!.root.findByProps({ role: 'tabpanel' }).props['aria-labelledby']).toBe(
       'manager-deployment-native'

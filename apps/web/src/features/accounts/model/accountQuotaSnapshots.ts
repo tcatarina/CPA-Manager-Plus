@@ -573,7 +573,7 @@ export const buildAccountQuotaSnapshotQueryAccounts = (
   );
   return rows.flatMap((row) => {
     const target = targets.get(row.selectionKey);
-    if (!target || !['codex', 'claude', 'antigravity', 'kimi', 'xai', 'devin', 'meta'].includes(row.provider)) {
+    if (!target || !['codex', 'claude', 'antigravity', 'kimi', 'xai', 'devin', 'meta', 'glm'].includes(row.provider)) {
       return [];
     }
     return [
@@ -754,6 +754,14 @@ export const mergeAccountQuotaSnapshotWindows = (
       !scopedProviderWindowIds.has(definition.providerWindowId)
   );
   const compatibleSnapshots = canonicalSnapshots.filter((snapshot) => {
+    if (
+      options.provider === 'glm' &&
+      isIncompleteModelScopeSnapshot(snapshot) &&
+      canonicalDefinitions.some((definition) =>
+        definition.providerWindowId === snapshot.provider_window_id &&
+        definition.modelScope.kind === 'all' && definition.modelScope.complete === true
+      )
+    ) return false;
     if (snapshot.model_scope_kind.trim().toLowerCase() !== 'all') return true;
     if (options.provider !== 'codex') return true;
     const isKnownScopedLegacy = isCodexKnownScopedProviderWindowId(snapshot.provider_window_id);
@@ -1044,7 +1052,8 @@ const snapshotDefinition = (
     options.provider === 'kimi' ||
     options.provider === 'meta' ||
     options.provider === 'xai' ||
-    options.provider === 'devin'
+    options.provider === 'devin' ||
+    options.provider === 'glm'
       ? options.provider
       : 'summary';
   const resetAtMs = snapshot.cycle_end_ms ?? null;

@@ -24,6 +24,7 @@ type AccountConfigurationTabProps = {
   disableControls: boolean;
   editor: UseAuthFileConfigurationEditorResult;
   onCopyText: (text: string) => void | Promise<void>;
+  configurationSource?: 'auth-file' | 'provider-config';
 };
 
 export function AccountConfigurationTab({
@@ -31,6 +32,7 @@ export function AccountConfigurationTab({
   disableControls,
   editor,
   onCopyText,
+  configurationSource = 'auth-file',
 }: AccountConfigurationTabProps) {
   const { t } = useTranslation();
   const reloadButtonId = useId();
@@ -47,6 +49,7 @@ export function AccountConfigurationTab({
   const capabilities = getAuthFileConfigurationCapabilities(state?.providerKey || row.provider);
   const providerLabel = getProviderLabel(state?.providerKey || row.provider, t);
   const disabled = disableControls || sharedSourceReadOnly || state?.saving === true;
+  const providerConfig = configurationSource === 'provider-config';
   const reloadAndRestoreFocus = () => {
     void editor.reload().then(() => {
       if (typeof window === 'undefined') return;
@@ -128,6 +131,11 @@ export function AccountConfigurationTab({
       role="region"
       aria-label={t('accounts.detail_tab_config')}
     >
+      {providerConfig && (
+        <p className={styles.configurationReadOnlyNotice} role="note">
+          {t('glm_quota.settings_scope')}
+        </p>
+      )}
       <div className={styles.configurationToolbar}>
         {dirty ? (
           <span className={styles.configurationDirtyBadge} role="status">
@@ -165,11 +173,20 @@ export function AccountConfigurationTab({
       <section className={styles.configurationSection}>
         <h3 className={styles.configurationSectionTitle}>{t('accounts.config_section_routing')}</h3>
         <div className={styles.configurationFieldGrid}>
+          {providerConfig && (
+            <Input
+              label={t('common.base_url')}
+              value={draft.baseUrl}
+              error={fieldError('baseUrl')}
+              disabled={disabled}
+              onChange={(event) => editor.updateField('baseUrl', event.target.value)}
+            />
+          )}
           <Input
             label={t('auth_files.prefix_label')}
             value={draft.prefix}
             placeholder={t('accounts.config_prefix_placeholder')}
-            hint={t('accounts.config_prefix_hint')}
+            hint={t(providerConfig ? 'glm_quota.shared_setting' : 'accounts.config_prefix_hint')}
             disabled={disabled}
             onChange={(event) => editor.updateField('prefix', event.target.value)}
           />
@@ -213,15 +230,17 @@ export function AccountConfigurationTab({
             disabled={disabled}
             onChange={(event) => editor.updateField('weight', event.target.value)}
           />
-          <div className={styles.configurationFieldFull}>
-            <Input
-              label={t('auth_files.note_label')}
-              value={draft.note}
-              placeholder={t('auth_files.note_placeholder')}
-              disabled={disabled}
-              onChange={(event) => editor.updateField('note', event.target.value)}
-            />
-          </div>
+          {!providerConfig && (
+            <div className={styles.configurationFieldFull}>
+              <Input
+                label={t('auth_files.note_label')}
+                value={draft.note}
+                placeholder={t('auth_files.note_placeholder')}
+                disabled={disabled}
+                onChange={(event) => editor.updateField('note', event.target.value)}
+              />
+            </div>
+          )}
         </div>
       </section>
 
@@ -351,28 +370,32 @@ export function AccountConfigurationTab({
         </section>
       )}
 
-      <section className={styles.configurationSection}>
-        <h3 className={styles.configurationSectionTitle}>{t('accounts.config_section_models')}</h3>
-        <div className="form-group">
-          <label>{t('auth_files.excluded_models_label')}</label>
-          <textarea
-            className="input"
-            rows={5}
-            value={draft.excludedModelsText}
-            placeholder={t('auth_files.excluded_models_placeholder')}
-            aria-label={t('auth_files.excluded_models_label')}
-            disabled={disabled}
-            onChange={(event) => editor.updateField('excludedModelsText', event.target.value)}
-          />
-          <div className="hint">
-            {t(
-              sharedSourceReadOnly
-                ? 'accounts.config_excluded_models_shared_hint'
-                : 'accounts.config_excluded_models_hint'
-            )}
+      {!providerConfig && (
+        <section className={styles.configurationSection}>
+          <h3 className={styles.configurationSectionTitle}>
+            {t('accounts.config_section_models')}
+          </h3>
+          <div className="form-group">
+            <label>{t('auth_files.excluded_models_label')}</label>
+            <textarea
+              className="input"
+              rows={5}
+              value={draft.excludedModelsText}
+              placeholder={t('auth_files.excluded_models_placeholder')}
+              aria-label={t('auth_files.excluded_models_label')}
+              disabled={disabled}
+              onChange={(event) => editor.updateField('excludedModelsText', event.target.value)}
+            />
+            <div className="hint">
+              {t(
+                sharedSourceReadOnly
+                  ? 'accounts.config_excluded_models_shared_hint'
+                  : 'accounts.config_excluded_models_hint'
+              )}
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       <section className={styles.configurationSection}>
         <h3 className={styles.configurationSectionTitle}>

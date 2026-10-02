@@ -47,6 +47,7 @@ export type AccountQuotaWindowSource =
   | 'kimi'
   | 'meta'
   | 'xai'
+  | 'glm'
   | 'summary';
 
 export interface AccountQuotaDisplayWindow {

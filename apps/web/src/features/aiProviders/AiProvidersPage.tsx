@@ -1686,6 +1686,7 @@ export function AiProvidersPage() {
       </div>
 
       <ProviderDetailDrawer
+        onSaved={handleDrawerSaved}
         row={detailRow}
         open={detailRowKey !== null}
         usageByProvider={usageByProvider}

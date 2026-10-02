@@ -15,6 +15,7 @@ import {
 import { getProviderKindIcon, PROVIDER_KIND_LABELS } from '../ProviderTable/kindMeta';
 import { coolingPolicyFromOverride, type CoolingPolicy } from '@/types';
 import type { ProviderRow } from '../ProviderTable/rowData';
+import { GlmProviderDetails } from './GlmProviderDetails';
 import styles from './ProviderDetailDrawer.module.scss';
 
 interface ProviderDetailDrawerProps {
@@ -25,12 +26,22 @@ interface ProviderDetailDrawerProps {
   actionsDisabled: boolean;
   toggleDisabled: boolean;
   onClose: () => void;
+  onSaved?: () => void;
   onEdit: (row: ProviderRow) => void;
   onDelete: (row: ProviderRow) => void;
   onToggle: (row: ProviderRow, enabled: boolean) => void;
   onToggleWebsockets: (row: ProviderRow, enabled: boolean) => void;
   onToggleCloak: (row: ProviderRow, enabled: boolean) => void;
   onToggleDisableCooling: (row: ProviderRow, policy: CoolingPolicy) => void;
+}
+
+function supportsGlmQuota(baseUrl: string): boolean {
+  try {
+    const url = new URL(baseUrl);
+    return url.protocol === 'https:' && url.hostname === 'api.z.ai';
+  } catch {
+    return false;
+  }
 }
 
 interface FieldRowProps {
@@ -56,6 +67,7 @@ export function ProviderDetailDrawer({
   actionsDisabled,
   toggleDisabled,
   onClose,
+  onSaved,
   onEdit,
   onDelete,
   onToggle,
@@ -191,21 +203,23 @@ export function ProviderDetailDrawer({
               provider.baseUrl
             );
             return (
-              <div key={getOpenAIEntryKey(entry, entryIndex)} className={styles.keyEntryCard}>
-                <span className={styles.keyEntryIndex}>{entryIndex + 1}</span>
-                <span className={styles.keyEntryKey}>{maskApiKey(entry.apiKey)}</span>
-                <span className={styles.keyEntryWeight}>
-                  {t('ai_providers.weight_label')}: {formatCredentialWeight(entry.weight)}
-                </span>
-                {entry.proxyUrl && <span className={styles.keyEntryProxy}>{entry.proxyUrl}</span>}
-                <span className={styles.keyEntryStats}>
-                  <span className={styles.statSuccess}>
-                    <IconCheck size={12} /> {entryStats.success}
+              <div key={getOpenAIEntryKey(entry, entryIndex)}>
+                <div className={styles.keyEntryCard}>
+                  <span className={styles.keyEntryIndex}>{entryIndex + 1}</span>
+                  <span className={styles.keyEntryKey}>{maskApiKey(entry.apiKey)}</span>
+                  <span className={styles.keyEntryWeight}>
+                    {t('ai_providers.weight_label')}: {formatCredentialWeight(entry.weight)}
                   </span>
-                  <span className={styles.statFailure}>
-                    <IconX size={12} /> {entryStats.failure}
+                  {entry.proxyUrl && <span className={styles.keyEntryProxy}>{entry.proxyUrl}</span>}
+                  <span className={styles.keyEntryStats}>
+                    <span className={styles.statSuccess}>
+                      <IconCheck size={12} /> {entryStats.success}
+                    </span>
+                    <span className={styles.statFailure}>
+                      <IconX size={12} /> {entryStats.failure}
+                    </span>
                   </span>
-                </span>
+                </div>
               </div>
             );
           })}
@@ -313,6 +327,12 @@ export function ProviderDetailDrawer({
       </>
     );
   };
+
+  if (open && row?.kind === 'openai' && supportsGlmQuota(row.raw.baseUrl)) {
+    return (
+      <GlmProviderDetails key={row.key} provider={row.raw} onClose={onClose} onSaved={onSaved} disableControls={actionsDisabled || toggleDisabled} />
+    );
+  }
 
   return (
     <Drawer

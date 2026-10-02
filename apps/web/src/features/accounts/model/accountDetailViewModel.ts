@@ -1053,9 +1053,9 @@ const buildOverviewCredential = (
     statusLabelKey: row.disabled
       ? 'accounts.detail_auth_status_disabled'
       : 'accounts.detail_auth_status_enabled',
-    sourceLabelKey: row.runtimeOnly
-      ? 'accounts.detail_runtime_only'
-      : 'accounts.detail_local_auth_file',
+    sourceLabelKey: row.raw.credential_source === 'provider-config'
+      ? 'glm_quota.config_source'
+      : row.runtimeOnly ? 'accounts.detail_runtime_only' : 'accounts.detail_local_auth_file',
     fields: compactFields([
       field('provider', 'accounts.col_provider', row.provider),
       field('planType', 'accounts.col_plan', subscription.planPresentation?.fullLabel ?? subscription.effectivePlanType),

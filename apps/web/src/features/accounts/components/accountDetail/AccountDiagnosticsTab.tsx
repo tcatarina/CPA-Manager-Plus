@@ -73,7 +73,9 @@ export function AccountDiagnosticsTab({
   const { t, i18n } = useTranslation();
   const conclusion = detailView.strategy.conclusion;
   const activity = detailView.strategy.activity;
-  const monitoringParams = new URLSearchParams({ auth_file: row.fileName });
+  const monitoringParams = new URLSearchParams(
+    row.raw.credential_source === 'provider-config' ? {} : { auth_file: row.fileName }
+  );
   if (row.authIndex) monitoringParams.set('auth_index', row.authIndex);
 
   const evidenceStatusClass = {

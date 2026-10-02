@@ -1,3 +1,4 @@
+import { AccountDetailDrawer } from './components/accountDetail/AccountDetailDrawer';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type {
   KeyboardEvent,
@@ -9652,13 +9653,6 @@ export function AccountsPage() {
 
     const providerIcon = getAuthFileIcon(selectedRow.provider, resolvedTheme);
 
-    const detailTabs: Array<{ id: DetailTab; label: string }> = [
-      { id: 'overview', label: t('accounts.detail_tab_overview') },
-      { id: 'quota', label: t('accounts.detail_tab_quota') },
-      { id: 'config', label: t('accounts.detail_tab_config') },
-      { id: 'models', label: t('accounts.detail_tab_models') },
-      { id: 'diagnostics', label: t('accounts.detail_tab_diagnostics') },
-    ];
     const valueRow =
       usageRows.find((row) => row.row?.selectionKey === selectedRow.selectionKey) ??
       usageRows.find((row) => !row.row && row.fileName === selectedRow.fileName);
@@ -9894,13 +9888,13 @@ export function AccountsPage() {
     ];
 
     return (
-      <Drawer
+      <AccountDetailDrawer
         key={selectedRow.selectionKey}
-        open
+        activeTab={detailTab}
+        onTabChange={(tab) => void openAccountDetail(selectedRow, tab)}
+        disabled={selectedRow.disabled}
         onClose={closeAccountDetail}
         onBeforeClose={confirmConfigurationDiscard}
-        width="clamp(540px, 45vw, 720px)"
-        className={styles.accountDetailDrawer}
         bodyRef={detailDrawerBodyRef}
         title={
           <div className={styles.drawerTitleIdentity}>
@@ -9978,50 +9972,8 @@ export function AccountsPage() {
           </div>
         }
       >
-        <div className={styles.drawerBodyShell} data-detail-tab={detailTab}>
-          {selectedRow.disabled ? (
-            <div className={styles.drawerDisabledNotice} role="status">
-              <span>
-                {t('accounts.detail_disabled_notice_title', { defaultValue: '账号已禁用' })}
-              </span>
-              <p>
-                {t('accounts.detail_disabled_notice_desc', {
-                  defaultValue:
-                    '此账号当前不接收业务请求，但仍可刷新额度和维护配置。点击底部“启用”按钮可恢复请求路由。',
-                })}
-              </p>
-            </div>
-          ) : null}
-          <div
-            className={styles.drawerTabs}
-            role="tablist"
-            aria-label={t('accounts.detail_tablist_label')}
-          >
-            {detailTabs.map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                role="tab"
-                id={`accounts-detail-tab-${tab.id}`}
-                aria-selected={detailTab === tab.id}
-                aria-controls="accounts-detail-tab-panel"
-                className={detailTab === tab.id ? styles.drawerTabActive : ''}
-                onClick={() => void openAccountDetail(selectedRow, tab.id)}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-          <div
-            id="accounts-detail-tab-panel"
-            className={styles.drawerTabPanel}
-            role="tabpanel"
-            aria-labelledby={`accounts-detail-tab-${detailTab}`}
-          >
-            {renderActiveDetail()}
-          </div>
-        </div>
-      </Drawer>
+        {renderActiveDetail()}
+      </AccountDetailDrawer>
     );
   };
 

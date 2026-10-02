@@ -135,6 +135,22 @@ const makeSnapshotRow = (
   }) as unknown as AccountRow;
 
 describe('account quota snapshots', () => {
+  it('does not append legacy unknown-scope GLM duplicates to confirmed account-wide windows', () => {
+    const definitions = [
+      makeDefinition({ provider: 'glm', providerWindowId: '5h-0', key: '5h-0' }),
+      makeDefinition({ provider: 'glm', providerWindowId: '7d-1', key: '7d-1', kind: 'weekly' }),
+    ];
+    const legacy = ['5h-0', '7d-1'].map((id) => makeSnapshot({
+      provider_window_id: id, model_scope_kind: 'feature', model_scope_key: 'scope_unknown',
+      used_percent: undefined, remaining_percent: undefined,
+    }));
+    const result = mergeAccountQuotaSnapshotWindows(definitions, legacy, { provider: 'glm' });
+    expect(result).toHaveLength(2);
+    expect(result.every((window) => window.modelScope.kind === 'all' && window.modelScope.complete)).toBe(true);
+    const actualModelQuota = makeSnapshot({ provider_window_id: 'actual-model-quota', model_scope_kind: 'models', model_ids: ['glm-5'] });
+    expect(mergeAccountQuotaSnapshotWindows(definitions, [...legacy, actualModelQuota], { provider: 'glm' })).toHaveLength(3);
+    expect(mergeAccountQuotaSnapshotWindows(definitions, legacy, { provider: 'claude' })).toHaveLength(4);
+  });
   it('overlays server provenance, boundaries, scope, and stale state', () => {
     const merged = mergeAccountQuotaSnapshotWindows(
       [makeDefinition()],

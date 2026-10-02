@@ -571,12 +571,17 @@ const enqueueProviderSectionWrite = <T>(section: string, task: () => Promise<T>)
 
 const mutateLatestProviderList = async (
   section: string,
-  mutate: (latestItems: unknown[]) => unknown[]
+  mutate: (latestItems: unknown[]) => unknown[],
+  requestConfig?: Parameters<typeof apiClient.get>[1]
 ) =>
   enqueueProviderSectionWrite(section, async () => {
-    const rawConfig = await apiClient.get('/config');
+    const rawConfig = requestConfig
+      ? await apiClient.get('/config', requestConfig)
+      : await apiClient.get('/config');
     const latestItems = getRawSectionList(rawConfig, section);
-    await apiClient.put(`/${section}`, mutate(latestItems));
+    const next = mutate(latestItems);
+    if (requestConfig) await apiClient.put(`/${section}`, next, requestConfig);
+    else await apiClient.put(`/${section}`, next);
   });
 
 const matchesProviderConfig = (
@@ -897,7 +902,6 @@ export {
   hasMetaDcaAuthorizationHeader,
   isMetaDcaCredential,
 };
-
 
 const serializeVertexKey = (config: ProviderKeyConfig) => {
   const payload: Record<string, unknown> = {};
@@ -1249,6 +1253,85 @@ export const providersApi = {
   deleteVertexConfig: (apiKey: string, baseUrl?: string) =>
     apiClient.delete(`/vertex-api-key${buildProviderDeleteQuery(apiKey, baseUrl)}`),
 
+  patchOpenAICredential: (
+    original: OpenAIProviderConfig,
+    originalEntry: ApiKeyEntry,
+    providerPatch: Record<string, unknown>,
+    entryPatch: Record<string, unknown>,
+    requestConfig?: Parameters<typeof apiClient.get>[1]
+  ) =>
+    mutateLatestProviderList(
+      'openai-compatibility',
+      (latestItems) => {
+        const matches = latestItems.flatMap((item, index) =>
+          isRecord(item) && item.name === original.name && item['base-url'] === original.baseUrl
+            ? [index]
+            : []
+        );
+        if (matches.length !== 1)
+          throw new Error('Provider configuration changed; refresh and try again.');
+        const index = matches[0];
+        const target = latestItems[index] as Record<string, unknown>;
+        const live = normalizeOpenAIProvider(target);
+        if (!live) throw new Error('Provider configuration changed; refresh and try again.');
+        const expected: Record<string, unknown> = {
+          prefix: original.prefix ?? '',
+          priority: original.priority ?? 0,
+          disabled: original.disabled ?? false,
+          headers: original.headers ?? {},
+          'disable-cooling': original.disableCooling ?? null,
+          'request-retry': original.requestRetry ?? original['request-retry'] ?? null,
+          models: original.models ?? [],
+        };
+        const actual: Record<string, unknown> = {
+          prefix: live.prefix ?? '',
+          priority: live.priority ?? 0,
+          disabled: live.disabled ?? false,
+          headers: live.headers ?? {},
+          'disable-cooling': live.disableCooling ?? null,
+          'request-retry': live.requestRetry ?? null,
+          models: live.models ?? [],
+        };
+        if (
+          Object.keys(providerPatch).some(
+            (field) =>
+              field in expected && JSON.stringify(expected[field]) !== JSON.stringify(actual[field])
+          )
+        )
+          throw new Error('Provider configuration changed; refresh and try again.');
+        const keys = target['api-key-entries'];
+        if (!Array.isArray(keys))
+          throw new Error('Credential configuration changed; refresh and try again.');
+        const indices = keys.flatMap((key, keyIndex) =>
+          isRecord(key) &&
+          key['api-key'] === originalEntry.apiKey &&
+          String(key['proxy-url'] ?? '') === String(originalEntry.proxyUrl ?? '')
+            ? [keyIndex]
+            : []
+        );
+        if (indices.length !== 1)
+          throw new Error('Credential configuration changed; refresh and try again.');
+        const selectedKey = keys[indices[0]] as Record<string, unknown>;
+        if ('weight' in entryPatch && (selectedKey.weight ?? 1) !== (originalEntry.weight ?? 1))
+          throw new Error('Credential configuration changed; refresh and try again.');
+        const preservedPatch = { ...providerPatch };
+        if (Array.isArray(providerPatch.models))
+          preservedPatch.models = mergeModelPayloads(
+            target,
+            serializeModelAliases(providerPatch.models as ModelAlias[])
+          );
+        const next = {
+          ...target,
+          ...preservedPatch,
+          'api-key-entries': keys.map((key, keyIndex) =>
+            keyIndex === indices[0] ? { ...(key as Record<string, unknown>), ...entryPatch } : key
+          ),
+        };
+        return latestItems.map((item, itemIndex) => (itemIndex === index ? next : item));
+      },
+      requestConfig
+    ),
+
   async getOpenAIProviders(): Promise<OpenAIProviderConfig[]> {
     const data = await apiClient.get('/openai-compatibility');
     const list = extractArrayPayload(data, 'openai-compatibility');
@@ -1294,6 +1377,8 @@ export const providersApi = {
       )
     ),
 
-  deleteOpenAIProvider: (name: string) =>
-    apiClient.delete(`/openai-compatibility?name=${encodeURIComponent(name)}`),
+  deleteOpenAIProvider: (name: string, requestConfig?: Parameters<typeof apiClient.delete>[1]) =>
+    requestConfig
+      ? apiClient.delete(`/openai-compatibility?name=${encodeURIComponent(name)}`, requestConfig)
+      : apiClient.delete(`/openai-compatibility?name=${encodeURIComponent(name)}`),
 };
