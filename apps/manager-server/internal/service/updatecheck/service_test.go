@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -63,16 +64,22 @@ func fixture(tag string) ReleaseInfo {
 		info.Content.Notes[lang] = Repository + "/blob/" + tag + "/docs/release-notes/" + tag + "-" + lang + ".md"
 	}
 	info.Update.UpgradeGuideURL = info.Content.Notes["zh"]
-	info.Distribution.Docker.Image = "seakee/cpa-manager-plus"
+	info.Distribution.Docker.Image = "tcatarina/cpa-manager-plus"
 	info.Distribution.Docker.VersionTag = tag
-	for _, os := range []string{"darwin", "linux", "windows"} {
+	for _, os := range []string{"darwin", "linux"} {
 		for _, arch := range []string{"amd64", "arm64"} {
-			ext := ".tar.gz"
-			if os == "windows" {
-				ext = ".zip"
-			}
-			info.Distribution.Native.Assets = append(info.Distribution.Native.Assets, "cpa-manager-plus_"+tag+"_"+os+"_"+arch+ext)
+			info.Distribution.Native.Assets = append(info.Distribution.Native.Assets, "cpa-manager-plus_"+tag+"_"+os+"_"+arch+".tar.gz")
 		}
+	}
+	return info
+}
+
+// Releases published before Windows targets were dropped still advertise them.
+func legacyFixture(tag string) ReleaseInfo {
+	info := fixture(tag)
+	for _, arch := range []string{"amd64", "arm64"} {
+		info.Distribution.Native.Assets = append(info.Distribution.Native.Assets,
+			"cpa-manager-plus_"+tag+"_windows_"+arch+".zip")
 	}
 	return info
 }
@@ -547,13 +554,49 @@ func TestSetChannelKeepsPreferenceWhenImmediateCheckFails(t *testing.T) {
 	}
 }
 
+func TestForkReleaseMetadataAndChannels(t *testing.T) {
+	current := fixture("v2.2.2")
+	if err := current.Validate("v2.2.2"); err != nil {
+		t.Fatalf("current fork release rejected: %v", err)
+	}
+	if err := (legacyFixture("v2.0.0")).Validate("v2.0.0"); err != nil {
+		t.Fatalf("legacy Windows release rejected: %v", err)
+	}
+	upstream := fixture("v2.2.2")
+	upstream.Distribution.Docker.Image = "seakee/cpa-manager-plus"
+	if err := upstream.Validate("v2.2.2"); err == nil {
+		t.Fatal("accepted upstream docker image")
+	}
+	t.Run("native", func(t *testing.T) {
+		for name, mutate := range map[string]func(*ReleaseInfo){
+			"partial": func(i *ReleaseInfo) { i.Distribution.Native.Assets = i.Distribution.Native.Assets[:2] },
+			"unknown": func(i *ReleaseInfo) {
+				i.Distribution.Native.Assets = append(i.Distribution.Native.Assets, "evil.tar.gz")
+			},
+			"dupe": func(i *ReleaseInfo) {
+				i.Distribution.Native.Assets = append(i.Distribution.Native.Assets, i.Distribution.Native.Assets[0])
+			},
+			"emptied":  func(i *ReleaseInfo) { i.Distribution.Native.Assets = nil },
+			"mixed-os": func(i *ReleaseInfo) { i.Distribution.Native.Assets[2] = "cpa-manager-plus_v2.2.2_windows_amd64.zip" },
+		} {
+			bad := fixture("v2.2.2")
+			mutate(&bad)
+			if err := bad.Validate("v2.2.2"); err == nil {
+				t.Fatalf("accepted %s native assets", name)
+			}
+		}
+	})
+	if !strings.HasPrefix(IndexURL, "https://raw.githubusercontent.com/tcatarina/") {
+		t.Fatalf("index url points at upstream: %s", IndexURL)
+	}
+}
 func TestReleasePolicyAndLinksFailClosed(t *testing.T) {
 	for _, guide := range []string{
 		Repository + "/../../untrusted/guide",
 		Repository + "/%2e%2e/%2e%2e/untrusted/guide",
 		Repository + `/\..\..\untrusted/guide`,
-		"http://github.com/seakee/CPA-Manager-Plus/releases",
-		"https://github.com.example/seakee/CPA-Manager-Plus/releases",
+		"http://github.com/tcatarina/CPA-Manager-Plus/releases",
+		"https://github.com.example/tcatarina/CPA-Manager-Plus/releases",
 	} {
 		info := fixture("v2.0.0")
 		info.Update.UpgradeGuideURL = guide

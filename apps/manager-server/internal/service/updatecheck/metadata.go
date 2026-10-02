@@ -11,8 +11,8 @@ import (
 	"time"
 )
 
-const Repository = "https://github.com/seakee/CPA-Manager-Plus"
-const IndexURL = "https://raw.githubusercontent.com/seakee/CPA-Manager-Plus/update-channel/update-index.json"
+const Repository = "https://github.com/tcatarina/CPA-Manager-Plus"
+const IndexURL = "https://raw.githubusercontent.com/tcatarina/CPA-Manager-Plus/update-channel/update-index.json"
 
 type Target struct {
 	Version string `json:"version"`
@@ -112,7 +112,7 @@ func (idx Index) Validate() error {
 }
 func safeLink(raw string) bool {
 	u, err := url.Parse(raw)
-	return err == nil && u.Scheme == "https" && u.Host == "github.com" && u.User == nil && !strings.Contains(u.Path, `\`) && strings.HasPrefix(path.Clean(u.Path), "/seakee/CPA-Manager-Plus/")
+	return err == nil && u.Scheme == "https" && u.Host == "github.com" && u.User == nil && !strings.Contains(u.Path, `\`) && strings.HasPrefix(path.Clean(u.Path), "/tcatarina/CPA-Manager-Plus/")
 }
 func (info ReleaseInfo) Validate(tag string) error {
 	v, err := ParseVersion(tag)
@@ -132,30 +132,21 @@ func (info ReleaseInfo) Validate(tag string) error {
 	if !safeLink(info.Update.UpgradeGuideURL) {
 		return errors.New("invalid upgrade guide")
 	}
-	if info.Distribution.Docker.Image != "seakee/cpa-manager-plus" || info.Distribution.Docker.VersionTag != tag {
+	if info.Distribution.Docker.Image != "tcatarina/cpa-manager-plus" || info.Distribution.Docker.VersionTag != tag {
 		return errors.New("invalid docker distribution")
 	}
-	if len(info.Distribution.Native.Assets) != 6 {
-		return errors.New("invalid native distribution")
+	// Accept the current darwin+linux matrix and the pre-fork matrix that still
+	// advertised Windows. Anything else is a truncated or tampered asset list.
+	acceptable := [][]string{nativeAssets(tag, "darwin", "linux"), nativeAssets(tag, "darwin", "linux", "windows")}
+	matched := false
+	for _, allowed := range acceptable {
+		if sameAssets(info.Distribution.Native.Assets, allowed) {
+			matched = true
+			break
+		}
 	}
-	seen := map[string]bool{}
-	for _, asset := range info.Distribution.Native.Assets {
-		valid := false
-		for _, os := range []string{"darwin", "linux", "windows"} {
-			for _, arch := range []string{"amd64", "arm64"} {
-				ext := ".tar.gz"
-				if os == "windows" {
-					ext = ".zip"
-				}
-				if asset == "cpa-manager-plus_"+tag+"_"+os+"_"+arch+ext {
-					valid = true
-				}
-			}
-		}
-		if !valid || seen[asset] {
-			return errors.New("invalid native asset")
-		}
-		seen[asset] = true
+	if !matched {
+		return errors.New("invalid native distribution")
 	}
 	if info.Compatibility.MinimumCPAVersion != nil {
 		if _, e := ParseVersion(*info.Compatibility.MinimumCPAVersion); e != nil {
@@ -163,4 +154,39 @@ func (info ReleaseInfo) Validate(tag string) error {
 		}
 	}
 	return nil
+}
+
+func nativeAssets(tag string, systems ...string) []string {
+	assets := make([]string, 0, len(systems)*2)
+	for _, system := range systems {
+		ext := ".tar.gz"
+		if system == "windows" {
+			ext = ".zip"
+		}
+		for _, arch := range []string{"amd64", "arm64"} {
+			assets = append(assets, "cpa-manager-plus_"+tag+"_"+system+"_"+arch+ext)
+		}
+	}
+	return assets
+}
+
+// Order-insensitive, duplicate-rejecting set equality. A repeated asset would
+// otherwise pass a length-prefixed comparison.
+func sameAssets(got, want []string) bool {
+	if len(got) != len(want) {
+		return false
+	}
+	seen := map[string]bool{}
+	for _, asset := range got {
+		if seen[asset] {
+			return false
+		}
+		seen[asset] = true
+	}
+	for _, asset := range want {
+		if !seen[asset] {
+			return false
+		}
+	}
+	return true
 }
