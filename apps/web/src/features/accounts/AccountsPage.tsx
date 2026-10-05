@@ -6424,6 +6424,9 @@ export function AccountsPage() {
             supersedeQuotaActionEvidence: healthyQuota,
             supersedeCooldownEvidence: healthyQuota,
           });
+          if (shouldAutoFetchCodexResetCreditDetails(refreshedQuota)) {
+            void loadCodexResetCreditDetails(row);
+          }
           return outcome;
         }
         case CLAUDE_CONFIG.type:
@@ -6490,6 +6493,7 @@ export function AccountsPage() {
       t,
       authFilesRequestScope,
       baseQuotaStores,
+      loadCodexResetCreditDetails,
     ]
   );
 
