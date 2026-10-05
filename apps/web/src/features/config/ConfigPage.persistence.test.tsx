@@ -89,6 +89,11 @@ vi.mock('@/components/config/VisualConfigEditor', () => ({
         <button type="button" data-test="enable-debug" onClick={() => onChange({ debug: true })} />
         <button
           type="button"
+          data-test="enable-commercial"
+          onClick={() => onChange({ commercialMode: true })}
+        />
+        <button
+          type="button"
           data-test="create-key"
           onClick={() => runMutation({ type: 'create', apiKey: 'sk-new' })}
         />
@@ -195,8 +200,19 @@ vi.mock('@/components/ui/SegmentedTabs', () => ({
 
 vi.mock('@/stores', () => ({
   useAuthStore: (
-    selector: (state: { connectionStatus: string; managementKey: string }) => unknown
-  ) => selector({ connectionStatus: 'connected', managementKey: 'management-key' }),
+    selector: (state: {
+      connectionStatus: string;
+      managementKey: string;
+      serverVersion: string;
+      serverCommit: string;
+    }) => unknown
+  ) =>
+    selector({
+      connectionStatus: 'connected',
+      managementKey: 'management-key',
+      serverVersion: 'v8.0.11',
+      serverCommit: 'e2bff01',
+    }),
   useNotificationStore: (
     selector: (state: {
       showNotification: typeof mocks.showNotification;
@@ -223,8 +239,8 @@ vi.mock('@/stores', () => ({
 vi.mock('@/hooks/useVisualConfig', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/hooks/useVisualConfig')>();
   return {
-    useVisualConfig: () => {
-      const realConfig = actual.useVisualConfig();
+    useVisualConfig: (runtime?: Parameters<typeof actual.useVisualConfig>[0]) => {
+      const realConfig = actual.useVisualConfig(runtime);
       if (mocks.useRealVisualConfig) return realConfig;
       return {
         visualValues: {
@@ -532,13 +548,71 @@ describe('ConfigPage v8 API-key persistence with the real visual config hook', (
 
       expect(mocks.saveConfigYaml).toHaveBeenCalledTimes(1);
       expect(serverConfig).toEqual({
-        ...initialConfig,
-        debug: true,
         access: { 'api-keys': expectedKeys },
+        'api-keys': initialConfig['api-keys'],
+        observability: { logs: { debug: true } },
       });
       expect(displayedKeys()).toBe(expectedKeys.join('\n'));
     }
   );
+});
+
+describe('ConfigPage CPA v8 visual persistence', () => {
+  it('resolves merged commercial mode when deciding the restart warning', async () => {
+    mocks.useRealVisualConfig = true;
+    let serverYaml = [
+      'defaults: &server',
+      '  commercial-mode: false',
+      'server:',
+      '  <<: *server',
+      '',
+    ].join('\n');
+    mocks.fetchConfigYaml.mockImplementation(async () => serverYaml);
+    mocks.saveConfigYaml.mockImplementation(async (yaml: string) => {
+      serverYaml = yaml;
+    });
+
+    await mountPage();
+    await click('enable-commercial');
+    await clickSave();
+    await click('confirm-save');
+
+    const effective = parseYaml(serverYaml, { merge: true }) as {
+      server?: Record<string, unknown>;
+    };
+    expect(effective.server?.['commercial-mode']).toBe(true);
+    expect(mocks.showNotification).toHaveBeenCalledWith(
+      'notification.commercial_mode_restart_required',
+      'warning'
+    );
+  });
+
+  it('saves commercial mode to server.commercial-mode and emits the restart warning', async () => {
+    mocks.useRealVisualConfig = true;
+    let serverConfig: {
+      'config-version': number;
+      server: { 'commercial-mode': boolean };
+    } = {
+      'config-version': 8,
+      server: { 'commercial-mode': false },
+    };
+    mocks.fetchConfigYaml.mockImplementation(async () => stringifyYaml(serverConfig));
+    mocks.saveConfigYaml.mockImplementation(async (yaml: string) => {
+      serverConfig = parseYaml(yaml) as typeof serverConfig;
+    });
+
+    await mountPage();
+    await click('enable-commercial');
+    await clickSave();
+    await click('confirm-save');
+
+    expect(serverConfig.server['commercial-mode']).toBe(true);
+    expect(serverConfig).not.toHaveProperty('commercial-mode');
+    expect(mocks.showNotification).toHaveBeenCalledWith(
+      'notification.commercial_mode_restart_required',
+      'warning'
+    );
+  });
 });
 
 describe('ConfigPage API-key source snapshot safety', () => {

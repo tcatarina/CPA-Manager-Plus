@@ -1723,10 +1723,19 @@ func loadHourlyAggregateCoverageState(ctx context.Context, tx *sql.Tx) (hourlyAg
 	return state, nil
 }
 
+func archiveSafeCoverageStatus(status string) bool {
+	switch status {
+	case derivedStatusReady, "catching_up":
+		return true
+	default:
+		return false
+	}
+}
+
 func validateHourlyAggregateCoverage(run Run, state hourlyAggregateCoverageState) error {
 	if state.SchemaVersion != usageaggregate.SchemaVersion ||
 		!usageaggregate.IsCurrentStructureRevision(state.StructureRevision) ||
-		state.Status != derivedStatusReady ||
+		!archiveSafeCoverageStatus(state.Status) ||
 		state.CoverageEventID < run.TargetEventID {
 		return fmt.Errorf(
 			"%w: hourly aggregate coverage=%d target=%d schema=%d revision=%q status=%s",
@@ -1916,7 +1925,7 @@ func validateDerivedCoverage(
 	if actualVersion != expectedVersion ||
 		strings.TrimSpace(actualRevision) == "" ||
 		actualRevision != expectedRevision ||
-		status != derivedStatusReady ||
+		!archiveSafeCoverageStatus(status) ||
 		coverageEventID < targetEventID {
 		return fmt.Errorf(
 			"%w: %s coverage=%d target=%d schema=%d expected_schema=%d revision=%q expected_revision=%q status=%s",

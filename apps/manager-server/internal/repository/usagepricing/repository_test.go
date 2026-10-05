@@ -218,6 +218,28 @@ func TestPricingRollupDoesNotClassifyIncrementalBacklogAsRebuild(t *testing.T) {
 	}
 }
 
+func TestPricingRollupSQLiteBusyDoesNotPoisonState(t *testing.T) {
+	ctx := context.Background()
+	cfg := testutil.NewConfig(t)
+	st := testutil.NewStore(t, cfg)
+
+	before, err := st.UsagePricingState(ctx)
+	if err != nil {
+		t.Fatalf("read pricing state before sqlite busy: %v", err)
+	}
+	if err := st.RecordUsagePricingFailure(ctx, errors.New("database is locked (SQLITE_BUSY)"), 10_000); err != nil {
+		t.Fatalf("record pricing sqlite busy: %v", err)
+	}
+	after, err := st.UsagePricingState(ctx)
+	if err != nil {
+		t.Fatalf("read pricing state after sqlite busy: %v", err)
+	}
+	if after.Status != before.Status || after.CoverageEventID != before.CoverageEventID ||
+		after.TargetEventID != before.TargetEventID || after.LastError != before.LastError {
+		t.Fatalf("pricing state changed after sqlite busy: before=%#v after=%#v", before, after)
+	}
+}
+
 func TestPricingRollupPreservesRebuildingStatusAcrossFailure(t *testing.T) {
 	ctx := context.Background()
 	cfg := testutil.NewConfig(t)
