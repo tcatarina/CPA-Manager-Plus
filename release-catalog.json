@@ -220,5 +220,49 @@
       }
     },
     "digest": "sha256:d37c65d72263897ed37c2b089e310b1229807842df677b1548b2a3734a8dcb9c"
+  },
+  "v2.2.3": {
+    "info": {
+      "schema_version": 1,
+      "release": {
+        "version": "v2.2.3",
+        "stage": "stable",
+        "source_commit": "e3848139517c14dad5b1571e84b20a89f4d93fc0"
+      },
+      "content": {
+        "summary": {
+          "zh": "修复凭证管理列表刷新额度后不加载重置额度的问题；重置额度现在由列表与详情抽屉使用同一新鲜度规则加载。",
+          "en": "Fix Credential Manager quota refresh not loading Codex reset credits; the list and detail drawer now use the same freshness rule."
+        },
+        "notes": {
+          "zh": "https://github.com/tcatarina/CPA-Manager-Plus/blob/v2.2.3/docs/release-notes/v2.2.3-zh.md",
+          "en": "https://github.com/tcatarina/CPA-Manager-Plus/blob/v2.2.3/docs/release-notes/v2.2.3-en.md"
+        }
+      },
+      "update": {
+        "breaking": false,
+        "migration_required": false,
+        "minimum_direct_upgrade_version": null,
+        "upgrade_guide_url": "https://github.com/tcatarina/CPA-Manager-Plus/releases/tag/v2.2.3"
+      },
+      "distribution": {
+        "docker": {
+          "image": "tcatarina/cpa-manager-plus",
+          "version_tag": "v2.2.3"
+        },
+        "native": {
+          "assets": [
+            "cpa-manager-plus_v2.2.3_darwin_amd64.tar.gz",
+            "cpa-manager-plus_v2.2.3_darwin_arm64.tar.gz",
+            "cpa-manager-plus_v2.2.3_linux_amd64.tar.gz",
+            "cpa-manager-plus_v2.2.3_linux_arm64.tar.gz"
+          ]
+        }
+      },
+      "compatibility": {
+        "minimum_cpa_version": "v7.3.4"
+      }
+    },
+    "digest": "sha256:4e22db14df98289d5692e1f1450f48a6d73821c2955583c43e1ea5a154b01464"
   }
 }
