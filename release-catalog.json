@@ -264,5 +264,49 @@
       }
     },
     "digest": "sha256:4e22db14df98289d5692e1f1450f48a6d73821c2955583c43e1ea5a154b01464"
+  },
+  "v2.2.4": {
+    "info": {
+      "schema_version": 1,
+      "release": {
+        "version": "v2.2.4",
+        "stage": "stable",
+        "source_commit": "a2d018d79d5c0fe23d18d399f1a1577d9a83e340"
+      },
+      "content": {
+        "summary": {
+          "zh": "同步上游 v1.14.3 稳定修复：完善 CPA v8 可视化配置、SQLite 争用处理以及 Safari 和 iOS 图标支持。",
+          "en": "Integrate upstream v1.14.3 fixes for CPA v8 visual configuration, SQLite contention, and Safari/iOS icons."
+        },
+        "notes": {
+          "zh": "https://github.com/tcatarina/CPA-Manager-Plus/blob/v2.2.4/docs/release-notes/v2.2.4-zh.md",
+          "en": "https://github.com/tcatarina/CPA-Manager-Plus/blob/v2.2.4/docs/release-notes/v2.2.4-en.md"
+        }
+      },
+      "update": {
+        "breaking": false,
+        "migration_required": false,
+        "minimum_direct_upgrade_version": null,
+        "upgrade_guide_url": "https://github.com/tcatarina/CPA-Manager-Plus/releases/tag/v2.2.4"
+      },
+      "distribution": {
+        "docker": {
+          "image": "tcatarina/cpa-manager-plus",
+          "version_tag": "v2.2.4"
+        },
+        "native": {
+          "assets": [
+            "cpa-manager-plus_v2.2.4_darwin_amd64.tar.gz",
+            "cpa-manager-plus_v2.2.4_darwin_arm64.tar.gz",
+            "cpa-manager-plus_v2.2.4_linux_amd64.tar.gz",
+            "cpa-manager-plus_v2.2.4_linux_arm64.tar.gz"
+          ]
+        }
+      },
+      "compatibility": {
+        "minimum_cpa_version": "v7.3.4"
+      }
+    },
+    "digest": "sha256:291dc8f116c6ef213f653cac06506fe7735c580b0d53ef733d429d278fcc8562"
   }
 }
