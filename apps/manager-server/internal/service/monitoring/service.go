@@ -1315,6 +1315,7 @@ func (s *Service) analytics(ctx context.Context, req Request) (Response, error) 
 				var prevModelStats []store.ModelStat
 				var prevSnapshot usagehourly.Snapshot
 				prevSnapshotAvailable := false
+				comparisonUnavailable := false
 				if rollupEligible {
 					edges, edgeErr := s.deletedHourlyEdges(ctx, comparisonFromMS, comparisonToMS,
 						comparisonRawCoverage != nil && comparisonRawCoverage.RawDeletedEventCount > 0)
@@ -1330,35 +1331,43 @@ func (s *Service) analytics(ctx context.Context, req Request) (Response, error) 
 						edges,
 					)
 					if prevSnapshot.ReadError != nil {
-						return Response{}, prevSnapshot.ReadError
+						if errors.Is(prevSnapshot.ReadError, store.ErrUsagePricingCoverageIncomplete) &&
+							comparisonRawCoverage != nil &&
+							comparisonRawCoverage.RawDeletedEventCount > 0 {
+							comparisonUnavailable = true
+						} else {
+							return Response{}, prevSnapshot.ReadError
+						}
 					}
 				}
-				if prevSnapshotAvailable {
-					prevAgg = prevSnapshot.Aggregate
-					prevModelStats = prevSnapshot.ModelStats
-					comparisonDerived = true
-				} else {
-					var aggregateDerived bool
-					prevAgg, aggregateDerived, err = s.aggregateWithSource(ctx, prevFilter)
-					if err != nil {
-						return Response{}, err
+				if !comparisonUnavailable {
+					if prevSnapshotAvailable {
+						prevAgg = prevSnapshot.Aggregate
+						prevModelStats = prevSnapshot.ModelStats
+						comparisonDerived = true
+					} else {
+						var aggregateDerived bool
+						prevAgg, aggregateDerived, err = s.aggregateWithSource(ctx, prevFilter)
+						if err != nil {
+							return Response{}, err
+						}
+						var modelsDerived bool
+						prevModelStats, modelsDerived, err = s.modelStatsWithSource(ctx, prevFilter)
+						if err != nil {
+							return Response{}, err
+						}
+						comparisonDerived = aggregateDerived && modelsDerived
 					}
-					var modelsDerived bool
-					prevModelStats, modelsDerived, err = s.modelStatsWithSource(ctx, prevFilter)
-					if err != nil {
-						return Response{}, err
+					response.SummaryComparison = &SummaryComparison{
+						FromMS:       prevFrom,
+						ToMS:         comparisonToMS,
+						TotalCalls:   prevAgg.TotalCalls,
+						SuccessCalls: prevAgg.SuccessCalls,
+						FailureCalls: prevAgg.FailureCalls,
+						SuccessRate:  ratio(prevAgg.SuccessCalls, prevAgg.TotalCalls),
+						TotalTokens:  prevAgg.TotalTokens,
+						TotalCost:    sumCost(prevModelStats, prices),
 					}
-					comparisonDerived = aggregateDerived && modelsDerived
-				}
-				response.SummaryComparison = &SummaryComparison{
-					FromMS:       prevFrom,
-					ToMS:         comparisonToMS,
-					TotalCalls:   prevAgg.TotalCalls,
-					SuccessCalls: prevAgg.SuccessCalls,
-					FailureCalls: prevAgg.FailureCalls,
-					SuccessRate:  ratio(prevAgg.SuccessCalls, prevAgg.TotalCalls),
-					TotalTokens:  prevAgg.TotalTokens,
-					TotalCost:    sumCost(prevModelStats, prices),
 				}
 			}
 		}

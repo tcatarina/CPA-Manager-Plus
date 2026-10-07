@@ -662,13 +662,19 @@ func (s *Store) LoadUsageHourlyPricingSnapshot(
 		if aggregateFilter.LeftEdgeDeleted {
 			toMS := min((aggregateFilter.FromMS/hourMS+1)*hourMS, aggregateFilter.ToMS)
 			if err := usageprojection.VerifyRetainedEdgeTx(ctx, tx, aggregateFilter.FromMS, toMS); err != nil {
-				return UsageHourlyPricingSnapshot{}, fmt.Errorf("%w: %v", ErrUsagePricingCoverageIncomplete, err)
+				if errors.Is(err, usageprojection.ErrRetainedCoverageIncomplete) {
+					return UsageHourlyPricingSnapshot{}, fmt.Errorf("%w: %v", ErrUsagePricingCoverageIncomplete, err)
+				}
+				return UsageHourlyPricingSnapshot{}, err
 			}
 		}
 		if aggregateFilter.RightEdgeDeleted {
 			fromMS := max(aggregateFilter.ToMS/hourMS*hourMS, aggregateFilter.FromMS)
 			if err := usageprojection.VerifyRetainedEdgeTx(ctx, tx, fromMS, aggregateFilter.ToMS); err != nil {
-				return UsageHourlyPricingSnapshot{}, fmt.Errorf("%w: %v", ErrUsagePricingCoverageIncomplete, err)
+				if errors.Is(err, usageprojection.ErrRetainedCoverageIncomplete) {
+					return UsageHourlyPricingSnapshot{}, fmt.Errorf("%w: %v", ErrUsagePricingCoverageIncomplete, err)
+				}
+				return UsageHourlyPricingSnapshot{}, err
 			}
 		}
 	}
@@ -681,7 +687,10 @@ func (s *Store) LoadUsageHourlyPricingSnapshot(
 	if aggregateAvailable && (pricingErr != nil || !pricingAvailable || !hourlyPricingCoverageMatches(aggregateRows, pricingRows)) {
 		pricingRows, err = s.UsagePricing.LoadHourlyRowsFromEventsTx(ctx, tx, pricingFilter)
 		if err != nil {
-			return UsageHourlyPricingSnapshot{}, fmt.Errorf("%w: retained event query: %w", ErrUsagePricingCoverageIncomplete, err)
+			if errors.Is(err, ErrUsagePricingCoverageIncomplete) {
+				return UsageHourlyPricingSnapshot{}, err
+			}
+			return UsageHourlyPricingSnapshot{}, fmt.Errorf("%w: retained event query: %w", ErrUsagePricingRecoveryFailed, err)
 		}
 		if !hourlyPricingCoverageMatches(aggregateRows, pricingRows) {
 			return UsageHourlyPricingSnapshot{}, ErrUsagePricingCoverageIncomplete

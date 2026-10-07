@@ -11,6 +11,7 @@ import { modelsApi } from '@/services/api';
 import { modelDisplayLabel, type ModelInfo } from '@/utils/models';
 import { normalizeAuthIndex } from '@/utils/authIndex';
 import { buildHeaderObject } from '@/utils/headers';
+import { buildClaudeRequestHeaders, formatClaudeAuthDiagnostic } from '@/utils/claudeAuth';
 import type { ClaudeEditOutletContext } from './AiProvidersClaudeEditLayout';
 import styles from './AiProvidersPage.module.scss';
 import layoutStyles from './AiProvidersEditLayout.module.scss';
@@ -75,30 +76,29 @@ export function AiProvidersClaudeModelsPage() {
     setFetching(true);
     setError('');
     const headerObject = buildHeaderObject(form.headers);
+    const authIndex = normalizeAuthIndex(form.authIndex) ?? undefined;
     try {
       const list = await modelsApi.fetchClaudeModelsViaApiCall(
         form.baseUrl ?? '',
         form.apiKey.trim() || undefined,
         headerObject,
-        normalizeAuthIndex(form.authIndex) ?? undefined,
+        authIndex,
         form.proxyUrl
       );
       setModels(list);
     } catch (err: unknown) {
       setModels([]);
       const message = getErrorMessage(err);
-      const hasCustomXApiKey = Object.keys(headerObject).some(
-        (key) => key.toLowerCase() === 'x-api-key'
-      );
-      const hasAuthorization = Object.keys(headerObject).some(
-        (key) => key.toLowerCase() === 'authorization'
-      );
+      const authResolution = buildClaudeRequestHeaders({
+        url: modelsApi.buildClaudeModelsEndpoint(form.baseUrl ?? ''),
+        apiKey: form.apiKey.trim() || undefined,
+        authIndex,
+        customHeaders: headerObject,
+      });
       const shouldAttachDiag =
         message.toLowerCase().includes('x-api-key') || message.includes('401');
       const diag = shouldAttachDiag
-        ? ` [diag: apiKeyField=${form.apiKey.trim() ? 'yes' : 'no'}, customXApiKey=${
-            hasCustomXApiKey ? 'yes' : 'no'
-          }, customAuthorization=${hasAuthorization ? 'yes' : 'no'}]`
+        ? ` ${formatClaudeAuthDiagnostic(authResolution, form.apiKey, authIndex)}`
         : '';
       setError(`${t('ai_providers.claude_models_fetch_error')}: ${message}${diag}`);
     } finally {
@@ -117,15 +117,15 @@ export function AiProvidersClaudeModelsPage() {
     setError('');
 
     const headerObject = buildHeaderObject(form.headers);
-    const hasCustomXApiKey = Object.keys(headerObject).some(
-      (key) => key.toLowerCase() === 'x-api-key'
-    );
-    const hasAuthorization = Object.keys(headerObject).some(
-      (key) => key.toLowerCase() === 'authorization'
-    );
-    const hasApiKeyField = Boolean(form.apiKey.trim());
-    const hasAuthIndex = Boolean(normalizeAuthIndex(form.authIndex));
-    const canAutoFetch = hasApiKeyField || hasCustomXApiKey || hasAuthorization || hasAuthIndex;
+    const authIndex = normalizeAuthIndex(form.authIndex) ?? undefined;
+    const authResolution = buildClaudeRequestHeaders({
+      url: nextEndpoint,
+      apiKey: form.apiKey.trim() || undefined,
+      authIndex,
+      customHeaders: headerObject,
+    });
+    const canAutoFetch =
+      authResolution.effectiveXApiKey || authResolution.effectiveAuthorization;
 
     // Avoid firing a guaranteed 401 on initial render (common while the parent form is still
     // initializing), and avoid duplicate auto-fetches (e.g. React StrictMode in dev).
@@ -135,7 +135,7 @@ export function AiProvidersClaudeModelsPage() {
       .sort(([a], [b]) => a.toLowerCase().localeCompare(b.toLowerCase()))
       .map(([key, value]) => `${key}:${value}`)
       .join('|');
-    const signature = `${nextEndpoint}||${form.apiKey.trim()}||${normalizeAuthIndex(form.authIndex) ?? ''}||${form.proxyUrl?.trim() ?? ''}||${headerSignature}`;
+    const signature = `${nextEndpoint}||${form.apiKey.trim()}||${authIndex ?? ''}||${form.proxyUrl?.trim() ?? ''}||${headerSignature}`;
     if (autoFetchSignatureRef.current === signature) return;
     autoFetchSignatureRef.current = signature;
 

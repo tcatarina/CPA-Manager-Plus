@@ -3,6 +3,7 @@ package store
 import "errors"
 
 var ErrUsagePricingCoverageIncomplete = errors.New("usage pricing coverage is incomplete")
+var ErrUsagePricingRecoveryFailed = errors.New("usage pricing recovery failed")
 
 type hourlyPricingCoverageKey struct {
 	bucketMS     int64
