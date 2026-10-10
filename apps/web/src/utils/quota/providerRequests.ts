@@ -114,6 +114,7 @@ export type CodexQuotaData = {
   spendControlReached?: boolean | null;
   spendControlIndividualLimit?: number | null;
   rateLimitResetCreditsAvailableCount: number | null;
+  resetCreditsCountSource?: 'summary' | 'dedicated';
   rateLimitResetCredits: CodexRateLimitResetCredit[];
   rateLimitResetCreditsError: string | null;
   resetCreditsEvidenceAtMs?: number | null;
@@ -602,6 +603,7 @@ export const fetchCodexQuotaSummary = async (
     ...resolveCodexCreditsInfo(payload),
     ...resolveCodexSpendControlInfo(payload),
     rateLimitResetCreditsAvailableCount: usageResetCreditsAvailableCount,
+    resetCreditsCountSource: 'summary',
     rateLimitResetCredits: [],
     rateLimitResetCreditsError: null,
     resetCreditsEvidenceAtMs: usageResetCreditsAvailableCount !== null ? observedAtMs : null,
@@ -638,6 +640,7 @@ export const fetchCodexQuota = async (
   return {
     ...summary,
     rateLimitResetCreditsAvailableCount,
+    resetCreditsCountSource: hasResetCountObservation ? 'dedicated' : 'summary',
     rateLimitResetCredits: hasResetDetailObservation ? resetCredits.credits : [],
     rateLimitResetCreditsError: resetCredits.error,
     resetCreditsEvidenceAtMs: hasResetDetailObservation

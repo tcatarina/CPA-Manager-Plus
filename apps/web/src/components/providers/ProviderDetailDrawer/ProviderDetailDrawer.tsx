@@ -5,6 +5,7 @@ import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
 import { CoolingPolicySelect } from '../CoolingPolicySelect';
 import { IconCheck, IconX } from '@/components/ui/icons';
 import { maskApiKey } from '@/utils/format';
+import { getOpenAIKeyCount } from '@/utils/openAIKeyEntries';
 import { ProviderStatusBar } from '../ProviderStatusBar';
 import {
   getOpenAIEntryKey,
@@ -17,6 +18,15 @@ import { coolingPolicyFromOverride, type CoolingPolicy } from '@/types';
 import type { ProviderRow } from '../ProviderTable/rowData';
 import { GlmProviderDetails } from './GlmProviderDetails';
 import styles from './ProviderDetailDrawer.module.scss';
+
+function supportsGlmQuota(baseUrl: string): boolean {
+  try {
+    const url = new URL(baseUrl);
+    return url.protocol === 'https:' && url.hostname === 'api.z.ai';
+  } catch {
+    return false;
+  }
+}
 
 interface ProviderDetailDrawerProps {
   row: ProviderRow | null;
@@ -33,15 +43,6 @@ interface ProviderDetailDrawerProps {
   onToggleWebsockets: (row: ProviderRow, enabled: boolean) => void;
   onToggleCloak: (row: ProviderRow, enabled: boolean) => void;
   onToggleDisableCooling: (row: ProviderRow, policy: CoolingPolicy) => void;
-}
-
-function supportsGlmQuota(baseUrl: string): boolean {
-  try {
-    const url = new URL(baseUrl);
-    return url.protocol === 'https:' && url.hostname === 'api.z.ai';
-  } catch {
-    return false;
-  }
 }
 
 interface FieldRowProps {
@@ -67,13 +68,13 @@ export function ProviderDetailDrawer({
   actionsDisabled,
   toggleDisabled,
   onClose,
-  onSaved,
   onEdit,
   onDelete,
   onToggle,
   onToggleWebsockets,
   onToggleCloak,
   onToggleDisableCooling,
+  onSaved,
 }: ProviderDetailDrawerProps) {
   const { t } = useTranslation();
   const formatCredentialWeight = (weight: number | undefined) =>
@@ -187,15 +188,17 @@ export function ProviderDetailDrawer({
     if (!row || row.kind !== 'openai') return null;
     const provider = row.raw;
     const entries = provider.apiKeyEntries ?? [];
-    if (!entries.length) return null;
 
     return (
       <section className={styles.section}>
         <h4 className={styles.sectionTitle}>
-          {t('ai_providers.openai_keys_count')}: {entries.length}
+          {t('ai_providers.openai_keys_count')}: {getOpenAIKeyCount(entries)}
         </h4>
-        <div className={styles.keyEntryList}>
-          {entries.map((entry, entryIndex) => {
+        {entries.length === 0 ? (
+          <span>{t('ai_providers.health_check_no_key_entries')}</span>
+        ) : (
+          <div className={styles.keyEntryList}>
+            {entries.map((entry, entryIndex) => {
             const entryStats = getProviderTotalStats(
               usageByProvider,
               provider.name,
@@ -203,27 +206,36 @@ export function ProviderDetailDrawer({
               provider.baseUrl
             );
             return (
-              <div key={getOpenAIEntryKey(entry, entryIndex)}>
-                <div className={styles.keyEntryCard}>
-                  <span className={styles.keyEntryIndex}>{entryIndex + 1}</span>
-                  <span className={styles.keyEntryKey}>{maskApiKey(entry.apiKey)}</span>
-                  <span className={styles.keyEntryWeight}>
-                    {t('ai_providers.weight_label')}: {formatCredentialWeight(entry.weight)}
-                  </span>
-                  {entry.proxyUrl && <span className={styles.keyEntryProxy}>{entry.proxyUrl}</span>}
-                  <span className={styles.keyEntryStats}>
-                    <span className={styles.statSuccess}>
-                      <IconCheck size={12} /> {entryStats.success}
-                    </span>
-                    <span className={styles.statFailure}>
-                      <IconX size={12} /> {entryStats.failure}
-                    </span>
-                  </span>
-                </div>
+              <div key={getOpenAIEntryKey(entry, entryIndex)} className={styles.keyEntryCard}>
+                <span className={styles.keyEntryIndex}>{entryIndex + 1}</span>
+                <span className={styles.keyEntryKey}>
+                  {entry.apiKey?.trim()
+                    ? maskApiKey(entry.apiKey)
+                    : t('ai_providers.health_check_no_key_entries')}
+                </span>
+                <span className={styles.keyEntryWeight}>
+                  {t('ai_providers.weight_label')}: {formatCredentialWeight(entry.weight)}
+                </span>
+                {entry.proxyUrl && <span className={styles.keyEntryProxy}>{entry.proxyUrl}</span>}
+                <span className={styles.keyEntryStats}>
+                  {entry.apiKey?.trim() ? (
+                    <>
+                      <span className={styles.statSuccess}>
+                        <IconCheck size={12} /> {entryStats.success}
+                      </span>
+                      <span className={styles.statFailure}>
+                        <IconX size={12} /> {entryStats.failure}
+                      </span>
+                    </>
+                  ) : (
+                    t('ai_providers.usage_stats_unavailable')
+                  )}
+                </span>
               </div>
             );
-          })}
-        </div>
+            })}
+          </div>
+        )}
       </section>
     );
   };
@@ -314,15 +326,24 @@ export function ProviderDetailDrawer({
 
         <section className={styles.section}>
           <h4 className={styles.sectionTitle}>{t('ai_providers.table_col_recent')}</h4>
-          <div className={styles.recentStats}>
-            <span className={styles.statSuccess}>
-              {t('stats.success')}: {row.stats.success}
-            </span>
-            <span className={styles.statFailure}>
-              {t('stats.failure')}: {row.stats.failure}
-            </span>
-          </div>
-          <ProviderStatusBar statusData={row.statusData} />
+          {row.usageStatsCoverage === 'unavailable' ? (
+            <div className={styles.recentStats}>{t('ai_providers.usage_stats_unavailable')}</div>
+          ) : (
+            <>
+              <div className={styles.recentStats}>
+                <span className={styles.statSuccess}>
+                  {t('stats.success')}: {row.stats.success}
+                </span>
+                <span className={styles.statFailure}>
+                  {t('stats.failure')}: {row.stats.failure}
+                </span>
+                {row.usageStatsCoverage === 'partial' && (
+                  <span>{t('ai_providers.usage_stats_partial')}</span>
+                )}
+              </div>
+              <ProviderStatusBar statusData={row.statusData} />
+            </>
+          )}
         </section>
       </>
     );
@@ -330,7 +351,13 @@ export function ProviderDetailDrawer({
 
   if (open && row?.kind === 'openai' && supportsGlmQuota(row.raw.baseUrl)) {
     return (
-      <GlmProviderDetails key={row.key} provider={row.raw} onClose={onClose} onSaved={onSaved} disableControls={actionsDisabled || toggleDisabled} />
+      <GlmProviderDetails
+        key={row.key}
+        provider={row.raw}
+        onClose={onClose}
+        onSaved={onSaved}
+        disableControls={actionsDisabled || toggleDisabled}
+      />
     );
   }
 

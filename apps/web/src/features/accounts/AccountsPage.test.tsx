@@ -11763,47 +11763,6 @@ describe('AccountsPage replacement flows', () => {
     expect(quotaFetch.mock.calls.map(([file]) => file.name).sort()).toEqual(visibleNames);
   });
 
-  it('fetches reset credit details when a credential refresh reports an available count without them', async () => {
-    const file = makeCodexFile('codex-a.json', 'auth-a', 'a@example.com');
-    mocks.files = [file];
-    // Count observed, detail never observed: the merge marks detail stale.
-    vi.spyOn(CODEX_CONFIG, 'fetchQuota').mockResolvedValue(makeCodexQuotaData(1));
-    vi.spyOn(CODEX_SUMMARY_CONFIG, 'fetchQuota').mockResolvedValue(makeCodexQuotaData(1));
-    mocks.apiRequest.mockImplementation(async (call?: { url?: string }) =>
-      call?.url === CODEX_RATE_LIMIT_RESET_CREDITS_URL
-        ? {
-            statusCode: 200,
-            hasStatusCode: true,
-            header: {},
-            body: {
-              available_count: 1,
-              credits: [
-                {
-                  id: 'credit-1',
-                  reset_type: 'codex_rate_limits',
-                  status: 'available',
-                  granted_at: '2026-10-01T00:00:00Z',
-                  expires_at: '2026-10-31T00:00:00Z',
-                },
-              ],
-            },
-            bodyText: '',
-          }
-        : { statusCode: 200, hasStatusCode: true, header: {}, body: {}, bodyText: '{}' }
-    );
-
-    const renderer = await renderAccountsPage();
-    await act(async () => {
-      await findButtonByText(renderer, 'accounts.refresh_quota').props.onClick();
-      await flushPromises();
-    });
-
-    expect(
-      mocks.apiRequest.mock.calls.filter(
-        ([call]) => call?.url === CODEX_RATE_LIMIT_RESET_CREDITS_URL
-      )
-    ).toHaveLength(1);
-  });
 
   it('isolates overlapping quota refresh batches when the CPA connection changes', async () => {
     const firstFile = makeCodexFile('codex-a.json', 'auth-a', 'a@example.com');

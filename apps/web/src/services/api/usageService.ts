@@ -210,6 +210,16 @@ export interface QuotaCooldownsResponse {
   items: QuotaCooldownInfo[];
 }
 
+export interface QuotaCooldownRecoveryRequest {
+  authFileName: string;
+  authIndex: string;
+  provider: 'codex';
+}
+
+export interface QuotaCooldownRecoveryResponse {
+  recovered: boolean;
+}
+
 export interface UsageServiceSetupRequest {
   cpaBaseUrl: string;
   cpaManagementKey: string;
@@ -3147,6 +3157,28 @@ export const usageServiceApi = {
         }
       );
       return response.data.items ?? [];
+    });
+  },
+
+  recoverQuotaCooldown: async (
+    base: string,
+    managementKey: string,
+    request: QuotaCooldownRecoveryRequest
+  ): Promise<QuotaCooldownRecoveryResponse> => {
+    if (__DEMO_SITE__ && isDemoMode()) {
+      return { recovered: false };
+    }
+
+    return withUsageServiceError(async () => {
+      const response = await axios.post<QuotaCooldownRecoveryResponse>(
+        buildUrl(base, '/usage-service/quota-cooldowns/recover'),
+        request,
+        {
+          timeout: USAGE_SERVICE_TIMEOUT_MS,
+          headers: authHeaders(managementKey),
+        }
+      );
+      return response.data;
     });
   },
 
