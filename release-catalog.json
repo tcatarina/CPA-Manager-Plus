@@ -352,5 +352,49 @@
       }
     },
     "digest": "sha256:f9e43f87f9220a58d9a59b7397a41f822092bc41ba5266d7d6d089100e04d9ab"
+  },
+  "v2.2.6": {
+    "info": {
+      "schema_version": 1,
+      "release": {
+        "version": "v2.2.6",
+        "stage": "stable",
+        "source_commit": "a946c78a9604d367f138567ec10904dae3e63c19"
+      },
+      "content": {
+        "summary": {
+          "zh": "同步上游 v1.14.5：支持无密钥 OpenAI 兼容上游，并改进重置额度证据来源追踪与安全恢复。",
+          "en": "Sync upstream v1.14.5: support keyless OpenAI-compatible upstreams and improve reset-credit evidence provenance and safe recovery."
+        },
+        "notes": {
+          "zh": "https://github.com/tcatarina/CPA-Manager-Plus/blob/v2.2.6/docs/release-notes/v2.2.6-zh.md",
+          "en": "https://github.com/tcatarina/CPA-Manager-Plus/blob/v2.2.6/docs/release-notes/v2.2.6-en.md"
+        }
+      },
+      "update": {
+        "breaking": false,
+        "migration_required": false,
+        "minimum_direct_upgrade_version": null,
+        "upgrade_guide_url": "https://github.com/tcatarina/CPA-Manager-Plus/releases/tag/v2.2.6"
+      },
+      "distribution": {
+        "docker": {
+          "image": "tcatarina/cpa-manager-plus",
+          "version_tag": "v2.2.6"
+        },
+        "native": {
+          "assets": [
+            "cpa-manager-plus_v2.2.6_darwin_amd64.tar.gz",
+            "cpa-manager-plus_v2.2.6_darwin_arm64.tar.gz",
+            "cpa-manager-plus_v2.2.6_linux_amd64.tar.gz",
+            "cpa-manager-plus_v2.2.6_linux_arm64.tar.gz"
+          ]
+        }
+      },
+      "compatibility": {
+        "minimum_cpa_version": "v7.3.4"
+      }
+    },
+    "digest": "sha256:88b9996248b2a1977e15dd10257b5beb59bf0b7afe556b022444c88dcf1b83c3"
   }
 }
