@@ -48,8 +48,13 @@ export function AccountConfigurationTab({
   } = editor;
   const capabilities = getAuthFileConfigurationCapabilities(state?.providerKey || row.provider);
   const providerLabel = getProviderLabel(state?.providerKey || row.provider, t);
-  const disabled = disableControls || sharedSourceReadOnly || state?.saving === true;
   const providerConfig = configurationSource === 'provider-config';
+  const disabled =
+    disableControls ||
+    sharedSourceReadOnly ||
+    Boolean(state?.error) ||
+    state?.saving === true ||
+    state?.loading === true;
   const reloadAndRestoreFocus = () => {
     void editor.reload().then(() => {
       if (typeof window === 'undefined') return;
@@ -93,7 +98,7 @@ export function AccountConfigurationTab({
     );
   }
 
-  if (!state || state.loading) {
+  if (!state || (state.loading && !state.record)) {
     return (
       <div className={styles.configurationLoading} role="status" aria-live="polite">
         <span>{t('accounts.config_loading')}</span>
@@ -101,7 +106,7 @@ export function AccountConfigurationTab({
     );
   }
 
-  if (state.error || !draft || !state.record) {
+  if (!draft || !state.record) {
     return (
       <div className={styles.drawerDetailStack}>
         <section className={styles.drawerSection}>
@@ -130,12 +135,28 @@ export function AccountConfigurationTab({
       data-provider={state.providerKey}
       role="region"
       aria-label={t('accounts.detail_tab_config')}
+      aria-busy={state.loading}
     >
       {providerConfig && (
         <p className={styles.configurationReadOnlyNotice} role="note">
           {t('glm_quota.settings_scope')}
         </p>
       )}
+      {state.error ? (
+        <div className={styles.configurationLoadError} role="alert">
+          <span>{state.error}</span>
+          <Button
+            variant="secondary"
+            size="sm"
+            id={reloadButtonId}
+            data-account-config-reload="retry"
+            onClick={reloadAndRestoreFocus}
+          >
+            <IconRefreshCw size={14} />
+            {t('common.retry')}
+          </Button>
+        </div>
+      ) : null}
       <div className={styles.configurationToolbar}>
         {dirty ? (
           <span className={styles.configurationDirtyBadge} role="status">

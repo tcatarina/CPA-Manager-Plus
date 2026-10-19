@@ -1338,6 +1338,129 @@ func TestRepositoryDeleteRejectsRawRowsRemovedOutsideMaintenance(t *testing.T) {
 	}
 }
 
+func TestRepositoryDeleteDoesNotRewriteHealthyRetainedProjection(t *testing.T) {
+	db, repository, run := prepareVerifiedArchiveRun(t, "healthy-retained-projection-no-rewrite")
+	ctx := context.Background()
+	const sentinelUpdatedAtMS int64 = 12_345
+	if _, err := db.Exec(`update usage_monitoring_event_projection_v1
+		set updated_at_ms = ? where event_id = 1`, sentinelUpdatedAtMS); err != nil {
+		t.Fatalf("mark retained projection fixture: %v", err)
+	}
+	if _, err := repository.BeginDelete(ctx, run.ID, 69_000); err != nil {
+		t.Fatalf("begin delete: %v", err)
+	}
+	result, err := repository.DeleteBatch(ctx, run.ID, 1, 69_001)
+	if err != nil {
+		t.Fatalf("delete healthy retained batch: %v", err)
+	}
+	if result.Deleted != 1 || result.Run.DeletedEventCount != 1 {
+		t.Fatalf("delete result = %#v", result)
+	}
+	var updatedAtMS int64
+	if err := db.QueryRow(`select updated_at_ms
+		from usage_monitoring_event_projection_v1 where event_id = 1`).Scan(&updatedAtMS); err != nil {
+		t.Fatalf("read retained projection after delete: %v", err)
+	}
+	if updatedAtMS != sentinelUpdatedAtMS {
+		t.Fatalf("healthy retained projection was rewritten: updated_at_ms=%d want=%d", updatedAtMS, sentinelUpdatedAtMS)
+	}
+}
+
+func TestRepositoryDeleteRepairsMissingRetainedProjectionBeforeRawDelete(t *testing.T) {
+	db, repository, run := prepareVerifiedArchiveRun(t, "repair-missing-retained-projection")
+	ctx := context.Background()
+	if _, err := db.Exec(`delete from usage_monitoring_event_projection_v1 where event_id = 1`); err != nil {
+		t.Fatalf("remove retained projection fixture: %v", err)
+	}
+	var status string
+	var coverage int64
+	if err := db.QueryRow(`select status, coverage_event_id
+		from usage_monitoring_rollup_state where rollup_name = 'projection_v1'`).Scan(&status, &coverage); err != nil {
+		t.Fatalf("read projection state: %v", err)
+	}
+	if status != "ready" || coverage < run.TargetEventID {
+		t.Fatalf("projection state no longer reproduces healthy watermark: status=%s coverage=%d target=%d", status, coverage, run.TargetEventID)
+	}
+	if _, err := repository.BeginDelete(ctx, run.ID, 70_000); err != nil {
+		t.Fatalf("begin delete with missing material projection: %v", err)
+	}
+	result, err := repository.DeleteBatch(ctx, run.ID, 1, 70_001)
+	if err != nil {
+		t.Fatalf("delete batch after retained projection repair: %v", err)
+	}
+	if result.Deleted != 1 || result.Run.DeletedEventCount != 1 {
+		t.Fatalf("delete result = %#v", result)
+	}
+	var rawCount, projectionCount int64
+	if err := db.QueryRow(`select
+		(select count(*) from usage_events where id = 1),
+		(select count(*) from usage_monitoring_event_projection_v1 where event_id = 1 and timestamp_ms = 1000)`).Scan(&rawCount, &projectionCount); err != nil {
+		t.Fatalf("inspect repaired retained projection: %v", err)
+	}
+	if rawCount != 0 || projectionCount != 1 {
+		t.Fatalf("retained handoff raw=%d projection=%d, want raw=0 projection=1", rawCount, projectionCount)
+	}
+}
+
+func TestRepositoryDeleteRollsBackWhenRetainedProjectionHandoffFails(t *testing.T) {
+	db, repository, run := prepareVerifiedArchiveRun(t, "retained-projection-handoff-failure")
+	ctx := context.Background()
+	if _, err := db.Exec(`delete from usage_monitoring_event_projection_v1 where event_id = 1`); err != nil {
+		t.Fatalf("remove retained projection fixture: %v", err)
+	}
+	if _, err := db.Exec(`create trigger reject_retained_projection_handoff
+		before insert on usage_monitoring_event_projection_v1
+		when new.event_id = 1
+		begin select raise(abort, 'blocked retained projection handoff'); end`); err != nil {
+		t.Fatalf("create retained projection failure trigger: %v", err)
+	}
+	if _, err := repository.BeginDelete(ctx, run.ID, 71_000); err != nil {
+		t.Fatalf("begin delete: %v", err)
+	}
+	if _, err := repository.DeleteBatch(ctx, run.ID, 1, 71_001); err == nil {
+		t.Fatal("delete batch succeeded despite retained projection handoff failure")
+	}
+	var rawCount, deletedCount, deletedRefCount int64
+	if err := db.QueryRow(`select
+		(select count(*) from usage_events),
+		(select deleted_event_count from usage_archive_runs where id = ?),
+		(select count(*) from usage_archive_event_refs where run_id = ? and raw_deleted_at_ms is not null)`,
+		run.ID, run.ID,
+	).Scan(&rawCount, &deletedCount, &deletedRefCount); err != nil {
+		t.Fatalf("inspect failed retained handoff: %v", err)
+	}
+	if rawCount != run.EventCount || deletedCount != 0 || deletedRefCount != 0 {
+		t.Fatalf("failed retained handoff changed delete state raw=%d deleted=%d refs=%d", rawCount, deletedCount, deletedRefCount)
+	}
+}
+
+func TestRepositoryDeleteResumeRejectsMissingProjectionForDeletedEvent(t *testing.T) {
+	db, repository, run := prepareVerifiedArchiveRun(t, "resume-missing-retained-projection")
+	ctx := context.Background()
+	if _, err := repository.BeginDelete(ctx, run.ID, 72_000); err != nil {
+		t.Fatalf("begin delete: %v", err)
+	}
+	first, err := repository.DeleteBatch(ctx, run.ID, 1, 72_001)
+	if err != nil || first.Deleted != 1 || first.Run.DeletedEventCount != 1 {
+		t.Fatalf("first delete batch = %#v err=%v", first, err)
+	}
+	if _, err := db.Exec(`delete from usage_monitoring_event_projection_v1 where event_id = 1`); err != nil {
+		t.Fatalf("remove retained row after raw deletion: %v", err)
+	}
+	if _, err := repository.BeginDelete(ctx, run.ID, 72_002); !errors.Is(err, ErrCoverageIncomplete) {
+		t.Fatalf("resume delete error = %v, want coverage incomplete", err)
+	}
+	var remainingRaw, deletedCount int64
+	if err := db.QueryRow(`select
+		(select count(*) from usage_events where id = 2),
+		(select deleted_event_count from usage_archive_runs where id = ?)`, run.ID).Scan(&remainingRaw, &deletedCount); err != nil {
+		t.Fatalf("inspect rejected resume: %v", err)
+	}
+	if remainingRaw != 1 || deletedCount != 1 {
+		t.Fatalf("rejected resume changed delete state raw=%d deleted=%d", remainingRaw, deletedCount)
+	}
+}
+
 func TestRepositoryDeleteDoesNotRequireLegacyDashboardCheckpoint(t *testing.T) {
 	for _, checkpointState := range []string{"missing", "behind"} {
 		t.Run(checkpointState, func(t *testing.T) {
