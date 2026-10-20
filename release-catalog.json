@@ -396,5 +396,49 @@
       }
     },
     "digest": "sha256:88b9996248b2a1977e15dd10257b5beb59bf0b7afe556b022444c88dcf1b83c3"
+  },
+  "v2.2.7": {
+    "info": {
+      "schema_version": 1,
+      "release": {
+        "version": "v2.2.7",
+        "stage": "stable",
+        "source_commit": "76f36a6c280b3a9ff52cbd8c1d50d5727b3a77dd"
+      },
+      "content": {
+        "summary": {
+          "zh": "发布版本。",
+          "en": "Release build."
+        },
+        "notes": {
+          "zh": "https://github.com/tcatarina/CPA-Manager-Plus/blob/v2.2.7/docs/release-notes/v2.2.7-zh.md",
+          "en": "https://github.com/tcatarina/CPA-Manager-Plus/blob/v2.2.7/docs/release-notes/v2.2.7-en.md"
+        }
+      },
+      "update": {
+        "breaking": false,
+        "migration_required": false,
+        "minimum_direct_upgrade_version": null,
+        "upgrade_guide_url": "https://github.com/tcatarina/CPA-Manager-Plus/releases/tag/v2.2.7"
+      },
+      "distribution": {
+        "docker": {
+          "image": "tcatarina/cpa-manager-plus",
+          "version_tag": "v2.2.7"
+        },
+        "native": {
+          "assets": [
+            "cpa-manager-plus_v2.2.7_darwin_amd64.tar.gz",
+            "cpa-manager-plus_v2.2.7_darwin_arm64.tar.gz",
+            "cpa-manager-plus_v2.2.7_linux_amd64.tar.gz",
+            "cpa-manager-plus_v2.2.7_linux_arm64.tar.gz"
+          ]
+        }
+      },
+      "compatibility": {
+        "minimum_cpa_version": null
+      }
+    },
+    "digest": "sha256:9168c3ffa325aa1c1eef958198dc2a56811d1cf226b9ed35e1a395c0ffa7970c"
   }
 }
