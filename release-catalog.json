@@ -440,5 +440,49 @@
       }
     },
     "digest": "sha256:9168c3ffa325aa1c1eef958198dc2a56811d1cf226b9ed35e1a395c0ffa7970c"
+  },
+  "v2.2.8": {
+    "info": {
+      "schema_version": 1,
+      "release": {
+        "version": "v2.2.8",
+        "stage": "stable",
+        "source_commit": "79d77f71696f2109ab077d10e20650890cfafd2c"
+      },
+      "content": {
+        "summary": {
+          "zh": "同步上游 v1.14.8/v1.14.9，修复刷新、凭据隔离及配额显示问题，并更新安全依赖，保留 GLM 和分支更新功能。",
+          "en": "Sync upstream v1.14.8/v1.14.9 with refresh, credential-isolation and quota fixes plus security updates; preserve GLM and fork updater support."
+        },
+        "notes": {
+          "zh": "https://github.com/tcatarina/CPA-Manager-Plus/blob/v2.2.8/docs/release-notes/v2.2.8-zh.md",
+          "en": "https://github.com/tcatarina/CPA-Manager-Plus/blob/v2.2.8/docs/release-notes/v2.2.8-en.md"
+        }
+      },
+      "update": {
+        "breaking": false,
+        "migration_required": false,
+        "minimum_direct_upgrade_version": null,
+        "upgrade_guide_url": "https://github.com/tcatarina/CPA-Manager-Plus/releases/tag/v2.2.8"
+      },
+      "distribution": {
+        "docker": {
+          "image": "tcatarina/cpa-manager-plus",
+          "version_tag": "v2.2.8"
+        },
+        "native": {
+          "assets": [
+            "cpa-manager-plus_v2.2.8_darwin_amd64.tar.gz",
+            "cpa-manager-plus_v2.2.8_darwin_arm64.tar.gz",
+            "cpa-manager-plus_v2.2.8_linux_amd64.tar.gz",
+            "cpa-manager-plus_v2.2.8_linux_arm64.tar.gz"
+          ]
+        }
+      },
+      "compatibility": {
+        "minimum_cpa_version": null
+      }
+    },
+    "digest": "sha256:c677ce2ad4860ccae10af500134d5347b8a062896dfa22c2f1df36fa866fc10f"
   }
 }
