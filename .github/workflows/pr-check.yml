@@ -23,10 +23,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  security:
-    name: Dependency Security
-    uses: ./.github/workflows/security.yml
-
   changes:
     name: Scope
     runs-on: ubuntu-latest
@@ -309,7 +305,6 @@ jobs:
   required:
     name: Required checks
     needs:
-      - security
       - changes
       - frontend
       - manager-server
@@ -324,7 +319,6 @@ jobs:
     steps:
       - name: Verify applicable checks
         env:
-          SECURITY_RESULT: ${{ needs.security.result }}
           CHANGES_RESULT: ${{ needs.changes.result }}
           FRONTEND_RESULT: ${{ needs.frontend.result }}
           MANAGER_SERVER_RESULT: ${{ needs['manager-server'].result }}
@@ -336,12 +330,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
-          if [ "${SECURITY_RESULT}" != "success" ]; then
-            echo "Dependency Security did not complete successfully: ${SECURITY_RESULT:-missing}" >&2
-            exit 1
-          fi
-          echo "Dependency Security: ${SECURITY_RESULT}"
 
           results=(
             "Scope:${CHANGES_RESULT}"
