@@ -484,5 +484,49 @@
       }
     },
     "digest": "sha256:c677ce2ad4860ccae10af500134d5347b8a062896dfa22c2f1df36fa866fc10f"
+  },
+  "v2.2.9": {
+    "info": {
+      "schema_version": 1,
+      "release": {
+        "version": "v2.2.9",
+        "stage": "stable",
+        "source_commit": "5445838eb619d37c81a28286f2ee4bc6a3e24f2b"
+      },
+      "content": {
+        "summary": {
+          "zh": "同步上游 v1.14.10，新增凭据置顶并修复模型排除、URL 同步、插件默认值与历史价格读取，保留 GLM 支持。",
+          "en": "Sync upstream v1.14.10: credential pinning, model-exclusion and URL fixes, plugin defaults, and historical pricing recovery; preserve GLM support."
+        },
+        "notes": {
+          "zh": "https://github.com/tcatarina/CPA-Manager-Plus/blob/v2.2.9/docs/release-notes/v2.2.9-zh.md",
+          "en": "https://github.com/tcatarina/CPA-Manager-Plus/blob/v2.2.9/docs/release-notes/v2.2.9-en.md"
+        }
+      },
+      "update": {
+        "breaking": false,
+        "migration_required": false,
+        "minimum_direct_upgrade_version": null,
+        "upgrade_guide_url": "https://github.com/tcatarina/CPA-Manager-Plus/releases/tag/v2.2.9"
+      },
+      "distribution": {
+        "docker": {
+          "image": "tcatarina/cpa-manager-plus",
+          "version_tag": "v2.2.9"
+        },
+        "native": {
+          "assets": [
+            "cpa-manager-plus_v2.2.9_darwin_amd64.tar.gz",
+            "cpa-manager-plus_v2.2.9_darwin_arm64.tar.gz",
+            "cpa-manager-plus_v2.2.9_linux_amd64.tar.gz",
+            "cpa-manager-plus_v2.2.9_linux_arm64.tar.gz"
+          ]
+        }
+      },
+      "compatibility": {
+        "minimum_cpa_version": null
+      }
+    },
+    "digest": "sha256:93dc26ee2f59f2b257126e8ceeeec2f8f4d29977eaaa2a993b284443617e8a93"
   }
 }
