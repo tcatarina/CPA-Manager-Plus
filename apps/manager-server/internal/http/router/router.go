@@ -135,6 +135,10 @@ func rootHandler(
 			middleware.WithCORS(appCtx.Config, proxyHandler.CPAResource)(w, r)
 			return
 		}
+		if proxysvc.IsCPAV8APIKeysConfigPath(r.URL.Path) {
+			middleware.WithCORS(appCtx.Config, proxyHandler.V8APIKeysConfig)(w, r)
+			return
+		}
 		if r.URL.Path == "/" {
 			http.Redirect(w, r, "/management.html", http.StatusTemporaryRedirect)
 			return

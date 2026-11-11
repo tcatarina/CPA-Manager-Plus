@@ -37,6 +37,7 @@ import {
   IconMoreVertical,
   IconModelCluster,
   IconPlus,
+  IconPin,
   IconRefreshCw,
   IconRotateCcw,
   IconSearch,
@@ -278,6 +279,12 @@ import {
   resolveAccountRequestHealthEvidence,
   type AccountRequestEvidenceInput,
 } from '@/features/accounts/model/accountHealthEvidence';
+import {
+  applyAccountPinnedOrder,
+  readAccountPinnedKeys,
+  toggleAccountPinnedKey,
+  writeAccountPinnedKeys,
+} from '@/features/accounts/model/accountPinnedRows';
 import {
   DEFAULT_ACCOUNTS_WORKSPACE_UI_STATE,
   readAccountsWorkspaceUiState,
@@ -1682,6 +1689,7 @@ export function AccountsPage() {
   const isCompactScreen = useMediaQuery('(max-width: 1024px)');
   const effectiveLayoutMode = isCompactScreen ? 'grid' : layoutMode;
   const [copiedIdentityKey, setCopiedIdentityKey] = useState<string | null>(null);
+  const [pinnedKeys, setPinnedKeys] = useState<string[]>(readAccountPinnedKeys);
   const detailEventsRequestIdRef = useRef(0);
   const detailEventsAutoLoadKeyRef = useRef<string | null>(null);
   const quotaCooldownRequestIdRef = useRef(0);
@@ -1757,6 +1765,8 @@ export function AccountsPage() {
     ) => AuthFileItem[]
   >(() => []);
   const lastWorkspaceNavigationRef = useRef<string | null>(null);
+  // Searches this page wrote itself, in order, until the router reports them back.
+  const pendingWorkspaceSearchesRef = useRef<string[]>([]);
   const syncingWorkspaceLocationRef = useRef(false);
   const hasProcessedInitialWorkspaceLocationRef = useRef(false);
   const currentHashHistoryStateRef = useRef<unknown>(
@@ -4436,13 +4446,17 @@ export function AccountsPage() {
         'accounts.recommend_reason_recovered'
       );
     });
-    return sortAccountRows(operationalRows, accountSort, requestEvidenceBySelectionKey);
+    return applyAccountPinnedOrder(
+      sortAccountRows(operationalRows, accountSort, requestEvidenceBySelectionKey),
+      pinnedKeys
+    );
   }, [
     accountSort,
     actionCandidatesByRowKey,
     baseFilteredRows,
     codexStatusBySelectionKey,
     effectiveOperationalFilter,
+    pinnedKeys,
     quotaCooldownsByRowKey,
     recommendationBySelectionKey,
     requestEvidenceBySelectionKey,
@@ -5225,6 +5239,7 @@ export function AccountsPage() {
       setDetailTab(tab);
       if (searchValue !== location.search) {
         lastWorkspaceNavigationRef.current = searchValue;
+        pendingWorkspaceSearchesRef.current.push(searchValue);
         navigate({ pathname: location.pathname, search: searchValue }, { replace: true });
       }
     },
@@ -5252,6 +5267,7 @@ export function AccountsPage() {
       DEFAULT_ACCOUNTS_WORKSPACE_UI_STATE
     );
     lastWorkspaceNavigationRef.current = searchValue;
+    pendingWorkspaceSearchesRef.current.push(searchValue);
     allowNextNavigation();
     navigate({ pathname: location.pathname, search: searchValue }, { replace: true });
   }, [allowNextNavigation, location.pathname, location.search, navigate, workspaceUrlState]);
@@ -5283,6 +5299,15 @@ export function AccountsPage() {
   );
 
   useEffect(() => {
+    const pendingSearches = pendingWorkspaceSearchesRef.current;
+    const echoIndex = pendingSearches.indexOf(location.search);
+    if (echoIndex >= 0) {
+      // A URL this page wrote from its own state. The state may already be newer
+      // (fast typing), so re-applying this older URL would drop the latest input.
+      pendingSearches.splice(0, echoIndex + 1);
+      return;
+    }
+    pendingSearches.length = 0;
     const fallback = hasProcessedInitialWorkspaceLocationRef.current
       ? DEFAULT_ACCOUNTS_WORKSPACE_UI_STATE
       : initialWorkspaceUiState.current;
@@ -5311,6 +5336,7 @@ export function AccountsPage() {
     }
     if (lastWorkspaceNavigationRef.current === nextSearch) return;
     lastWorkspaceNavigationRef.current = nextSearch;
+    pendingWorkspaceSearchesRef.current.push(nextSearch);
     navigate({ pathname: location.pathname, search: nextSearch }, { replace: true });
   }, [location.pathname, location.search, navigate, workspaceUrlState]);
 
@@ -5401,6 +5427,7 @@ export function AccountsPage() {
         DEFAULT_ACCOUNTS_WORKSPACE_UI_STATE
       );
       lastWorkspaceNavigationRef.current = searchValue;
+      pendingWorkspaceSearchesRef.current.push(searchValue);
       if (hadDirtyConfiguration) allowNextNavigation();
       navigate(
         {
@@ -5430,6 +5457,7 @@ export function AccountsPage() {
         DEFAULT_ACCOUNTS_WORKSPACE_UI_STATE
       );
       lastWorkspaceNavigationRef.current = searchValue;
+      pendingWorkspaceSearchesRef.current.push(searchValue);
       navigate({ pathname: location.pathname, search: searchValue }, { replace: true });
     },
     [location.pathname, location.search, navigate, workspaceUrlState]
@@ -5585,6 +5613,7 @@ export function AccountsPage() {
         DEFAULT_ACCOUNTS_WORKSPACE_UI_STATE
       );
       lastWorkspaceNavigationRef.current = searchValue;
+      pendingWorkspaceSearchesRef.current.push(searchValue);
       if (hadDirtyConfiguration) allowNextNavigation();
       navigate({ pathname: location.pathname, search: searchValue }, { replace: false });
     },
@@ -7731,6 +7760,43 @@ export function AccountsPage() {
     [showNotification, t]
   );
 
+  useEffect(() => {
+    writeAccountPinnedKeys(pinnedKeys);
+  }, [pinnedKeys]);
+
+  const handleTogglePinnedRow = useCallback(
+    (event: ReactMouseEvent<HTMLButtonElement>, row: AccountRow) => {
+      event.stopPropagation();
+      const pinning = !pinnedKeys.includes(row.selectionKey);
+      setPinnedKeys((current) => toggleAccountPinnedKey(current, row.selectionKey));
+      if (pinning && currentPage > 1) {
+        showNotification(t('accounts.pin_moved_to_top'), 'success');
+      }
+    },
+    [currentPage, pinnedKeys, showNotification, t]
+  );
+
+  const renderPinButton = (row: AccountRow) => {
+    // Selection mode owns the card corner and card clicks; pins return when it ends.
+    if (isSelectionMode) return null;
+    const pinned = pinnedKeys.includes(row.selectionKey);
+    const label = t(pinned ? 'accounts.unpin_account' : 'accounts.pin_account', {
+      name: row.accountLabel,
+    });
+    return (
+      <button
+        type="button"
+        className={`${styles.accountPinButton} ${pinned ? styles.accountPinButtonActive : ''}`}
+        aria-pressed={pinned}
+        aria-label={label}
+        title={label}
+        onClick={(event) => handleTogglePinnedRow(event, row)}
+      >
+        <IconPin size={13} fill={pinned ? 'currentColor' : 'none'} />
+      </button>
+    );
+  };
+
   const openOauthExcludedEditor = useCallback(
     (provider?: string) => {
       const providerValue = (provider || (providerFilter !== 'all' ? providerFilter : '')).trim();
@@ -9173,6 +9239,7 @@ export function AccountsPage() {
                               {getDisplayAccount(row)}
                             </strong>
                           </button>
+                          {renderPinButton(row)}
                           {copiedIdentityKey === `${row.selectionKey}:account` ? (
                             <span className={styles.accountIdentityCopyHint}>
                               {t('accounts.copy_feedback_copied')}
@@ -9670,6 +9737,7 @@ export function AccountsPage() {
                             {getDisplayAccount(row)}
                           </strong>
                         </button>
+                        {renderPinButton(row)}
                         {copiedIdentityKey === `${row.selectionKey}:account` ? (
                           <span className={styles.accountIdentityCopyHint}>
                             {t('accounts.copy_feedback_copied')}

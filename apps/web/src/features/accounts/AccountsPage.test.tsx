@@ -2944,6 +2944,43 @@ describe('AccountsPage replacement flows', () => {
     ).toBe(true);
   });
 
+  it('keeps newer search input when its own URL write is reported back late', async () => {
+    mocks.location = { pathname: '/accounts', search: '' };
+    const renderer = await renderAccountsPage();
+    const typeSearch = async (value: string) => {
+      await act(async () => {
+        findInputByAriaLabel(renderer, 'accounts.search_label').props.onChange({
+          target: { value },
+        });
+      });
+    };
+    const reportLocation = async (search: string) => {
+      mocks.location = { pathname: '/accounts', search };
+      await act(async () => {
+        renderer.update(<AccountsPage />);
+        await Promise.resolve();
+      });
+    };
+    const searchValue = () => findInputByAriaLabel(renderer, 'accounts.search_label').props.value;
+
+    await typeSearch('co');
+    await typeSearch('codex');
+    expect(mocks.navigate).toHaveBeenLastCalledWith(
+      { pathname: '/accounts', search: '?search=codex' },
+      { replace: true }
+    );
+
+    // The router reports the first write after the user has already typed more.
+    await reportLocation('?search=co');
+    expect(searchValue()).toBe('codex');
+    await reportLocation('?search=codex');
+    expect(searchValue()).toBe('codex');
+
+    // A search the page did not write itself (e.g. a link) still applies.
+    await reportLocation('?search=xai');
+    expect(searchValue()).toBe('xai');
+  });
+
   it('opens the configuration tab from a deep link', async () => {
     mocks.location = {
       pathname: '/accounts',

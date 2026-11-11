@@ -9,6 +9,14 @@ import { AccountConfigurationTab } from './AccountConfigurationTab';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
+const mockAuthState = vi.hoisted(() => ({
+  serverVersion: null as string | null,
+  serverCommit: null as string | null,
+}));
+vi.mock('@/stores/useAuthStore', () => ({
+  useAuthStore: (selector: (state: typeof mockAuthState) => unknown) => selector(mockAuthState),
+}));
+
 vi.mock('react-i18next', async (importOriginal) => {
   const actual = await importOriginal<typeof import('react-i18next')>();
   return {
@@ -128,6 +136,32 @@ const renderTab = (
 };
 
 describe('AccountConfigurationTab', () => {
+  it('keeps OAuth exclusion hints out of provider-config settings', () => {
+    const previousVersion = mockAuthState.serverVersion;
+    mockAuthState.serverVersion = 'v8.0.33';
+    let renderer!: ReactTestRenderer;
+    try {
+      act(() => {
+        renderer = create(
+          <AccountConfigurationTab
+            row={makeRow('glm')}
+            disableControls={false}
+            editor={makeEditor('glm')}
+            onCopyText={vi.fn()}
+            configurationSource="provider-config"
+          />
+        );
+      });
+      const text = readText(renderer.toJSON());
+      expect(text).toContain('glm_quota.settings_scope');
+      expect(text).not.toContain('auth_files.excluded_models_label');
+      expect(text).not.toContain('accounts.config_excluded_models_override_hint');
+    } finally {
+      if (renderer) act(() => renderer.unmount());
+      mockAuthState.serverVersion = previousVersion;
+    }
+  });
+
   it.each([true, false])(
     'retains the loaded form during reload or failure (loading=%s)',
     (loading) => {
@@ -342,5 +376,25 @@ describe('AccountConfigurationTab', () => {
     expect(text).toContain('accounts.detail_runtime_config_unavailable');
     expect(text).toContain('accounts.config_runtime_only_desc');
     expect(text).not.toContain('common.save');
+  });
+
+  it.each([
+    ['v8.0.32', null],
+    ['v8.0.33', 'accounts.config_excluded_models_override_hint'],
+    ['custom', 'accounts.config_excluded_models_precedence_unknown_hint'],
+  ] as const)('explains credential exclusion precedence on CPA %s', (serverVersion, hint) => {
+    mockAuthState.serverVersion = serverVersion;
+    try {
+      const text = readText(renderTab(makeRow(), makeEditor('codex')).toJSON());
+      expect(text).toContain('accounts.config_excluded_models_hint');
+      expect(text.includes('accounts.config_excluded_models_override_hint')).toBe(
+        hint === 'accounts.config_excluded_models_override_hint'
+      );
+      expect(text.includes('accounts.config_excluded_models_precedence_unknown_hint')).toBe(
+        hint === 'accounts.config_excluded_models_precedence_unknown_hint'
+      );
+    } finally {
+      mockAuthState.serverVersion = null;
+    }
   });
 });

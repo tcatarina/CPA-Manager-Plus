@@ -9,7 +9,8 @@ import type { AccountRow } from '@/features/accounts/model/accountRows';
 import {
   buildAccountModelRuleDiff,
   buildAccountModelRuleProjection,
-  setAccountModelExactRule,
+  getAccountModelExclusionPriority,
+  setEffectiveAccountModelExactRule,
   type AccountModelRuleRow,
   type AccountModelRuleScope,
 } from '@/features/accounts/model/accountModelRules';
@@ -22,6 +23,7 @@ import {
 } from '@/features/authFiles/constants';
 import type { UseAuthFileConfigurationEditorResult } from '@/features/authFiles/hooks/useAuthFileConfigurationEditor';
 import type { OAuthModelAliasEntry, ModelAlias } from '@/types';
+import { useAuthStore } from '@/stores/useAuthStore';
 import styles from '@/features/accounts/AccountsPage.module.scss';
 
 type AccountModelFilter = 'all' | 'available' | 'disabled';
@@ -113,6 +115,8 @@ export function AccountModelsTab({
   onConfiguredModelsChange,
 }: AccountModelsTabProps) {
   const { t } = useTranslation();
+  const serverVersion = useAuthStore((state) => state.serverVersion);
+  const exclusionPriority = getAccountModelExclusionPriority(serverVersion);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<AccountModelFilter>('all');
   const { state, draft, dirty, canSave, sharedSourceReadOnly, sourceMemberCount } = editor;
@@ -161,10 +165,12 @@ export function AccountModelsTab({
         globalRulesKnown,
         credentialRulesShared: sharedSourceReadOnly,
         credentialPrefix,
+        exclusionPriority,
       }),
     [
       credentialPrefix,
       credentialRules,
+      exclusionPriority,
       globalExcluded,
       globalRulesKnown,
       modelDefinitions,
@@ -182,6 +188,18 @@ export function AccountModelsTab({
     [draft?.excludedModelsText, state?.originalDraft?.excludedModelsText]
   );
   const modelRulesDirty = diff.added.length > 0 || diff.removed.length > 0;
+  // Override-capable CPA: a nonempty credential list replaces global rules; empty inherits them.
+  const originalCredentialRuleCount = diff.removed.length + diff.unchanged.length;
+  const globalInheritanceChange =
+    exclusionPriority === 'override' && projection.globalRules.length > 0
+      ? originalCredentialRuleCount === 0 && credentialRules.length > 0
+        ? 'stops'
+        : originalCredentialRuleCount > 0 && credentialRules.length === 0
+          ? 'resumes'
+          : null
+      : null;
+  const precedenceUnknown =
+    globalRulesKnown && exclusionPriority === 'unknown' && projection.globalRules.length > 0;
   const hasUnresolvedRows = useMemo(
     () => projection.rows.some((row) => !row.ruleModelIdResolved),
     [projection.rows]
@@ -220,6 +238,7 @@ export function AccountModelsTab({
     row.runtimeOnly ||
     sharedSourceReadOnly ||
     !globalRulesKnown ||
+    precedenceUnknown ||
     state?.saving === true ||
     !editorReady;
   const disabledCount = projection.rows.filter((model) => isKnownDisabledScope(model.scope)).length;
@@ -251,12 +270,15 @@ export function AccountModelsTab({
       );
       return;
     }
-    const next = setAccountModelExactRule(
+    const next = setEffectiveAccountModelExactRule({
       credentialRules,
-      model.ruleModelId,
+      globalRules: projection.globalRules,
+      exclusionPriority,
+      modelId: model.ruleModelId,
       excluded,
-      model.equivalentRuntimeModelIds
-    );
+      equivalentExactModelIds: model.equivalentRuntimeModelIds,
+    });
+    if (next === null) return;
     editor.updateField('excludedModelsText', next.join('\n'));
   };
 
@@ -302,8 +324,26 @@ export function AccountModelsTab({
       );
     }
     if (model.hasCredentialExactRule) {
+      // An emptied credential list would inherit a global rule that still excludes this model.
+      const restoredRules = setEffectiveAccountModelExactRule({
+        credentialRules,
+        globalRules: projection.globalRules,
+        exclusionPriority,
+        modelId: model.ruleModelId,
+        excluded: false,
+        equivalentExactModelIds: model.equivalentRuntimeModelIds,
+      });
+      if (restoredRules === null) {
+        return (
+          <Button variant="secondary" size="xs" onClick={onManageGlobalRules}>
+            {t('accounts.model_manage_global_rules')}
+          </Button>
+        );
+      }
       const remainsExcluded =
-        model.hasCredentialWildcardRule || model.globalPatterns.length > 0 || !globalRulesKnown;
+        model.hasCredentialWildcardRule ||
+        (exclusionPriority !== 'override' && model.globalPatterns.length > 0) ||
+        !globalRulesKnown;
       return (
         <Button
           variant="secondary"
@@ -460,6 +500,23 @@ export function AccountModelsTab({
       {hasUnresolvedRows && !modelDefinitionsLoading ? (
         <div className={styles.accountModelsWarning} role="note">
           {t('accounts.model_rule_mapping_unavailable')}
+        </div>
+      ) : null}
+
+      {precedenceUnknown ? (
+        <div className={styles.accountModelsWarning} role="note">
+          {t('accounts.model_precedence_unknown', { count: projection.globalRules.length })}
+        </div>
+      ) : null}
+
+      {globalInheritanceChange && !sharedSourceReadOnly ? (
+        <div className={styles.accountModelsWarning} role="note">
+          {t(
+            globalInheritanceChange === 'stops'
+              ? 'accounts.model_change_stops_inheriting_global'
+              : 'accounts.model_change_resumes_inheriting_global',
+            { count: projection.globalRules.length }
+          )}
         </div>
       ) : null}
 
